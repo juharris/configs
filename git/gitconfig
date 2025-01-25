@@ -1,0 +1,16 @@
+# Copy this to whatever `git config edit --global` or `git config --global -e` opens.
+[user]
+	email = juharris@users.noreply.github.com
+	name = Justin D. Harris
+[color]
+	ui = true
+[core]
+	# Update path depending on where you store your gitignore_global.txt
+	# excludesfile = /Users/jus/workspace/configs/git/gitignore_global.txt
+	excludesfile = C:\\Users\\Justin\\workspace\\configs\\git\\gitignore_global.txt
+	autocrlf = false
+	editor = code --wait
+[diff]
+	colorMoved = zebra
+[gui]
+	encoding = utf-8
