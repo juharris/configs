@@ -7,6 +7,8 @@
 *.yaml text eol=lf
 *.yml text eol=lf
 
+inputrc text eol=lf
+
 # Scripts
 *.bash     text eol=lf
 *.sh       text eol=lf
