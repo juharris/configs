@@ -83,8 +83,13 @@ update_inputrc() {
 }
 
 if [ "${_terminal_type}" == "zsh" ]; then
+	# Press arrow keys up and down to search history by prefix.
 	bindkey "^[[A" history-beginning-search-backward
 	bindkey "^[[B" history-beginning-search-forward
+
+	# Use Home and End to go to the beginning and end of the line.
+	bindkey "^[[H" beginning-of-line
+	bindkey "^[[F" end-of-line
 
 	export CLICOLOR=1
 	export LSCOLORS='ExGxBxDxCxEgEdxbxgxcxd'
