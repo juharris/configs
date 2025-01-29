@@ -1,4 +1,8 @@
 # Copy this to whatever `git config edit --global` or `git config --global -e` opens.
+# Or include it:
+# [include]
+#	path = /Users/jus/workspace/configs/git/gitconfig
+# (multiple paths can be included)
 [user]
 	email = juharris@users.noreply.github.com
 	name = Justin D. Harris
