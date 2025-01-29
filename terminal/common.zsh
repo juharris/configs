@@ -15,5 +15,9 @@ setopt PROMPT_SUBST;
 # `%#`: `#` for root, `%` for user
 PS1="%F{magenta}%n%f@%F{green}%m%f %F{yellow}%B%~%b%f \$(parse_git_branch) "$'\n'"%# "
 
+# Case insensitive completion
+autoload -Uz compinit && compinit
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+
 _current_dir=`dirname "$(realpath $0)"`
 BASH_SOURCE="${_current_dir}/common.sh" emulate ksh -c '. "$BASH_SOURCE"'
