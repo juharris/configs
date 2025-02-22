@@ -111,7 +111,8 @@ setup_java() {
 # setup_java()
 
 export HISTSIZE=100000
-export HISTFILESIZE=100000
+export HISTFILESIZE=${HISTSIZE}
+export SAVEHIST=${HISTSIZE}
 
 export POETRY_HOME="$HOME/.poetry"
 export PATH="${HOME}/bin:${POETRY_HOME}/bin:${PATH}"
