@@ -194,6 +194,7 @@ git_delete_merged_branches() {
 }
 
 git_prune_local_branches() {
+	# Maybe do `git fetch --prune origin`? but that pull other branches that we don't really need and they could have lots of changes.
 	local branches_to_delete=$(git branch | grep -E -v "^(\*|`git symbolic-ref --short HEAD`| *master$| *main$)")
 	if [ "${branches_to_delete}" != "" ]; then
 		git branch -D ${branches_to_delete}
@@ -222,6 +223,29 @@ git_find_change_commits() {
 git_tag_push() {
 	tag="$1"
 	git tag ${tag} && git push origin ${tag}
+}
+
+git_echo_manual_rebase_commands() {
+	branch=`git rev-parse --abbrev-ref HEAD`
+	cat << EOF
+# Here are the commands to run to manually rebase ${branch}:
+# Ensure the changes in the branch are correct and pushed:
+gpm
+gp
+
+gcm
+# Get the files as they are on the branch in the remote.
+# TODO Change the files + folders to be the ones for the repo based on the diff.
+git checkout origin/${branch} -- Gemfile* app config playground sorbet test
+git status
+# Check that the number of files matches the number of files changed in the pull request.
+git status -s | wc -l
+# Delete files, maybe?
+git checkout -B ${branch}
+git add .
+git commit -m "…"
+gp -f
+EOF
 }
 
 if [[ "$is_win" == "true" ]]; then
