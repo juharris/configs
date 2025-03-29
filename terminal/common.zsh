@@ -13,7 +13,7 @@ fi
 
 setopt PROMPT_SUBST;
 # `%#`: `#` for root, `%` for user
-PS1="%F{magenta}%n%f@%F{green}%m%f %F{yellow}%B%~%b%f \$(parse_git_branch) "$'\n'"%# "
+PS1="%(?..%F{red}[%?]%f )%F{magenta}%n%f@%F{green}%m%f %F{yellow}%B%~%b%f \$(parse_git_branch) "$'\n'"%# "
 
 # Case insensitive completion
 autoload -Uz compinit && compinit
