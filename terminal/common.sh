@@ -236,7 +236,7 @@ gp
 gcm
 # Get the files as they are on the branch in the remote.
 # TODO Change the files + folders to be the ones for the repo based on the diff.
-git checkout origin/${branch} -- Gemfile* app config playground sorbet test
+git checkout origin/${branch} -- `git ls-tree --name-only HEAD`
 git status
 # Check that the number of files matches the number of files changed in the pull request.
 git status -s | wc -l
