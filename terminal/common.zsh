@@ -12,8 +12,10 @@ fi
 }
 
 setopt PROMPT_SUBST;
-# `%#`: `#` for root, `%` for user
-PS1="%(?..%F{red}[%?]%f )%F{magenta}%n%f@%F{green}%m%f %F{yellow}%B%~%b%f \$(parse_git_branch) "$'\n'"%# "
+# `%#` at the end of the line with show `#` for root, `%` for user.
+# Used to use `%m` for the ${HOST}, but it would change the HOST which is annoying when other programs change it.
+_host="$(hostname -s)"
+PS1="%(?..%F{red}[%?]%f )%F{magenta}%n%f@%F{green}${_host}%f %F{yellow}%B%~%b%f \$(parse_git_branch) "$'\n'"%# "
 
 # Case insensitive completion
 autoload -Uz compinit && compinit
