@@ -581,7 +581,6 @@ if [ "${is_mac}" != "true" ]; then
 	PS1='$(code=${?##0};echo ${code:+"\[\033[01;31m\][${code}]\[\033[00m\] "})\[\033[01;32m\]\h\[\033[00m\]:\[\033[01;33m\]`sed "s/\(\(\(\/mnt\)\?\/c\/Users\/\(Justin\|juharri\(\\.NORTHAMERICA\)\?\|justi\)\)\(\/Documents\)\?\|~\)\/workspace/w/g" <<< "\w"`/\[\033[00m\]'
 	if [ -f /proc/sys/kernel/osrelease ] && grep -qi Microsoft /proc/sys/kernel/osrelease; then
 		# Windows Linux Subsystem (WSL)
-		is_wsl="true"
 
 		if type -t git &> /dev/null; then
 			export GPG_TTY=$(tty)
@@ -597,8 +596,6 @@ if [ "${is_mac}" != "true" ]; then
 		# xterm -fg white -bg black
 		#export DISPLAY=:0.0
 		#and run your terminal emulator. In that window, all key combinations are supported without issues even over ssh.
-	else
-		is_wsl="false"
 	fi
 
 	# Set shell prompt
