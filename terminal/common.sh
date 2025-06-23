@@ -576,39 +576,36 @@ fi
 # [repeat for subkeys: key 1, key 2 etc...]
 # save
 
-# Windows Linux Subsystem (WSL)
-if [ -f /proc/sys/kernel/osrelease ] && grep -qi Microsoft /proc/sys/kernel/osrelease; then
-	is_wsl="true"
-	PS1=''
-
-	if type -t git &> /dev/null; then
-		export GPG_TTY=$(tty)
-	fi
-	# To make Theano work.
-	# export KMP_AFFINITY=disabled
-
-	# if type -t git &> /dev/null; then
-	# 	git config --global core.editor "nano"
-	# fi
-
-	# For those of you who have trouble with arrow keys or key combinations in terminal programs started from windows, i found a solution that works: Install the Xming X11 server and apt-get a terminal program (konsole didn't work for me since dbus wasn't running, but xterm/urxvt worked out of the box). Start xming and bash, then
-	# xterm -fg white -bg black
-	#export DISPLAY=:0.0
-	#and run your terminal emulator. In that window, all key combinations are supported without issues even over ssh.
-else
-	is_wsl="false"
-	if [ "${is_mac}" != "true" ]; then
-		PS1='\[\033]0;${HOSTNAME}\007'
-	fi
-fi
-
 if [ "${is_mac}" != "true" ]; then
+	# Showing the error code. From https://stackoverflow.com/a/61740213/1226799
+	PS1='$(code=${?##0};echo ${code:+"\[\033[01;31m\][${code}]\[\033[00m\] "})\[\033[01;32m\]\h\[\033[00m\]:\[\033[01;33m\]`sed "s/\(\(\(\/mnt\)\?\/c\/Users\/\(Justin\|juharri\(\\.NORTHAMERICA\)\?\|justi\)\)\(\/Documents\)\?\|~\)\/workspace/w/g" <<< "\w"`/\[\033[00m\]'
+	if [ -f /proc/sys/kernel/osrelease ] && grep -qi Microsoft /proc/sys/kernel/osrelease; then
+		# Windows Linux Subsystem (WSL)
+		is_wsl="true"
+
+		if type -t git &> /dev/null; then
+			export GPG_TTY=$(tty)
+		fi
+		# To make Theano work.
+		# export KMP_AFFINITY=disabled
+
+		# if type -t git &> /dev/null; then
+		# 	git config --global core.editor "nano"
+		# fi
+
+		# For those of you who have trouble with arrow keys or key combinations in terminal programs started from windows, i found a solution that works: Install the Xming X11 server and apt-get a terminal program (konsole didn't work for me since dbus wasn't running, but xterm/urxvt worked out of the box). Start xming and bash, then
+		# xterm -fg white -bg black
+		#export DISPLAY=:0.0
+		#and run your terminal emulator. In that window, all key combinations are supported without issues even over ssh.
+	else
+		is_wsl="false"
+	fi
+
 	# Set shell prompt
 	if type -t __git_ps1 &> /dev/null; then
-		export PS1+='\[\033[01;32m\]\h\[\033[00m\]:\[\033[01;33m\]`sed "s/\(\(\(\/mnt\)\?\/c\/Users\/\(Justin\|juharri\(\\.NORTHAMERICA\)\?\|justi\)\)\(\/Documents\)\?\|~\)\/workspace/w/g" <<< "\w"`/\[\033[00m\]$(__git_ps1)'$'\n\$ '
-	else
-		export PS1+='\[\033[01;32m\]\h\[\033[00m\]:\[\033[01;33m\]`sed "s/\(\(\(\/mnt\)\?\/c\/Users\/\(Justin\|juharri\(\\.NORTHAMERICA\)\?\|justi\)\)\(\/Documents\)\?\|~\)\/workspace/w/g" <<< "\w"`/\[\033[00m\]\n\$ '
+		PS1+='$(__git_ps1)'
 	fi
+	export PS1+=$'\n\$ '
 fi
 
 # npm
