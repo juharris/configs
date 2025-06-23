@@ -558,7 +558,7 @@ fi
 # Generate: gpg --full-generate-key
 # Follow prompts. For email use email in GitHub: juharris@users.noreply.github.com. Give no comment.
 # For GitHub:
-# See keys: gpg --list-secret-keys --keyid-format LONG
+# See keys: `gpg --list-secret-keys --keyid-format LONG`
 # Export: gpg --armor --export <part after rsaXXXX/>
 
 # git config --global commit.gpgsign true
