@@ -579,6 +579,10 @@ fi
 if [ "${is_mac}" != "true" ]; then
 	# Showing the error code. From https://stackoverflow.com/a/61740213/1226799
 	PS1='$(code=${?##0};echo ${code:+"\[\033[01;31m\][${code}]\[\033[00m\] "})\[\033[01;32m\]\h\[\033[00m\]:\[\033[01;33m\]`sed "s/\(\(\(\/mnt\)\?\/c\/Users\/\(Justin\|juharri\(\\.NORTHAMERICA\)\?\|justi\)\)\(\/Documents\)\?\|~\)\/workspace/w/g" <<< "\w"`/\[\033[00m\]'
+	if type -t git &> /dev/null; then
+		PS1+='$(branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null); [ -n "$branch" ] && echo " (\[\033[36;4m\]${branch}\[\033[00m\])")'
+	fi
+	export PS1+=$'\n\$ '
 	if [ -f /proc/sys/kernel/osrelease ] && grep -qi Microsoft /proc/sys/kernel/osrelease; then
 		# Windows Linux Subsystem (WSL)
 
@@ -597,12 +601,6 @@ if [ "${is_mac}" != "true" ]; then
 		#export DISPLAY=:0.0
 		#and run your terminal emulator. In that window, all key combinations are supported without issues even over ssh.
 	fi
-
-	# Set shell prompt
-	if type -t __git_ps1 &> /dev/null; then
-		PS1+='$(__git_ps1)'
-	fi
-	export PS1+=$'\n\$ '
 fi
 
 # npm
