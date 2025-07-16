@@ -7,7 +7,12 @@
 function show_git_branch {
 branch=`git rev-parse --abbrev-ref HEAD 2> /dev/null`
 if [ -n "${branch}" ]; then
-    echo " (%F{cyan}%U$branch%u%f)"
+    changes=`git status --porcelain 2> /dev/null`
+    change_modifier=""
+    if [ -n "${changes}" ]; then
+        change_modifier="*"
+    fi
+    echo " (%F{cyan}%U$branch%u%f${change_modifier})"
 fi
 }
 
