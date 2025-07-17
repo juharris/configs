@@ -580,7 +580,7 @@ if [ "${is_mac}" != "true" ]; then
 	# Showing the error code. From https://stackoverflow.com/a/61740213/1226799
 	PS1='$(code=${?##0};echo ${code:+"\[\033[01;31m\][${code}]\[\033[00m\] "})\[\033[01;32m\]\h\[\033[00m\]:\[\033[01;33m\]`sed "s/\(\(\(\/mnt\)\?\/c\/Users\/\(Justin\|juharri\(\\.NORTHAMERICA\)\?\|justi\)\)\(\/Documents\)\?\|~\)\/workspace/w/g" <<< "\w"`/\[\033[00m\]'
 	if type -t git &> /dev/null; then
-		PS1+='$(branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null); [ -n "$branch" ] && echo " (\[\033[36;4m\]${branch}\[\033[00m\])")'
+		PS1+='$(branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null); [ -n "$branch" ] && echo " (\[\033[36;4m\]${branch}\[\033[00m\]$(if [ -n "$(git status --porcelain 2>/dev/null)" ]; then echo "*"; fi))")'
 	fi
 	export PS1+=$'\n\$ '
 	if [ -f /proc/sys/kernel/osrelease ] && grep -qi Microsoft /proc/sys/kernel/osrelease; then
