@@ -1,0 +1,21 @@
+{
+    /* https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/EventOverview/TextDefaultsBindings/TextDefaultsBindings.html */
+    /* Put this file in $HOME/Library/KeyBindings/DefaultKeyBinding.dict */
+    /* Remap Home + End keys to move to the beginning and end of the line */
+    /* Home */
+    "\UF729" = "moveToBeginningOfLine:";
+    /* End */
+    "\UF72B" = "moveToEndOfLine:";
+    /* Shift + Home */
+    "$\UF729" = "moveToBeginningOfLineAndModifySelection:";
+    /* Shift + End */
+    "$\UF72B" = "moveToEndOfLineAndModifySelection:";
+    /* Ctrl + Home */
+    "^\UF729" = "moveToBeginningOfDocument:";
+    /* Ctrl + End */
+    "^\UF72B" = "moveToEndOfDocument:";
+    /* Shift + Ctrl + Home */
+    "$^\UF729" = "moveToBeginningOfDocumentAndModifySelection:";
+    /* Shift + Ctrl + End */
+    "$^\UF72B" = "moveToEndOfDocumentAndModifySelection:";
+}
