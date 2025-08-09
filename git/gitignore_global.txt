@@ -8,6 +8,7 @@ __pycache__/
 .pydevproject
 .settings
 .spyderproject
+.venv
 *_i.c
 *_p.c
 *.aps
