@@ -559,12 +559,13 @@ fi
 # Follow prompts. For email use email in GitHub: juharris@users.noreply.github.com. Give no comment.
 # For GitHub:
 # See keys: `gpg --list-secret-keys --keyid-format LONG`
-# Export: gpg --armor --export <part after rsaXXXX/>
+# Export: gpg --armor --export <part after edXXXXX/>
+# Add to https://github.com/settings/keys
 
 # git config --global commit.gpgsign true
-# git config --global user.signingkey <part after rsaXXXX/>
+# git config --global user.signingkey <part after edXXXXX/>
 # Might need: git config --global user.email juharris@users.noreply.github.com
-# Run `git config --global -e` and then copy contents of ./gitconfig to it.
+# Run `git config --global -e` and then copy contents of ../git/gitconfig to it.
 
 # Extend expiry:
 # From: https://paul.fawkesley.com/extend-pgp-key-expiry-with-gpg/
