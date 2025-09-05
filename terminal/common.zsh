@@ -26,5 +26,16 @@ PS1="%(?..%F{red}[%?]%f )%F{magenta}%n%f@%F{green}${_host}%f %F{yellow}%B%~%b%f\
 autoload -Uz compinit && compinit
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
 
+# Press arrow keys up and down to search history by prefix.
+bindkey "^[[A" history-beginning-search-backward
+bindkey "^[[B" history-beginning-search-forward
+
+# Use Home and End to go to the beginning and end of the line.
+bindkey "^[[H" beginning-of-line
+bindkey "^[[F" end-of-line
+
+export CLICOLOR=1
+export LSCOLORS='ExGxBxDxCxEgEdxbxgxcxd'
+
 _current_dir=`dirname "$(realpath $0)"`
 BASH_SOURCE="${_current_dir}/common.sh" emulate ksh -c '. "$BASH_SOURCE"'
