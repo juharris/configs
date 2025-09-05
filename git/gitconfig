@@ -15,6 +15,12 @@
 	autocrlf = false
 	editor = code --wait
 [diff]
-	colorMoved = zebra
+	# Used to have `colorMoved = zebra`, but Tavian recommended this, but it seems to be the same to me.
+	compactionHeuristic = true
+	colorMoved = default
+	colorMovedWs = allow-indentation-change
+	algorithm = histogram
+	mnemonicPrefix = true
+	renames = true
 [gui]
 	encoding = utf-8
