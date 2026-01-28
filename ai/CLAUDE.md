@@ -42,3 +42,12 @@ Follow these commit title conventions:
 Good:
 - `[config][pulse] Set max num artifacts to 3`
 - `[db][conversations] Add scenario column`
+
+# Creating Pull Requests
+
+Use the above Git commit message conventions for the pull request title.
+
+Always make the pull request as a draft.
+
+If a pull request template is available in the repository, then always use it and fill in the details.
+Always summarize what was done and why it was done.
