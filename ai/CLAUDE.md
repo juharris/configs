@@ -24,3 +24,21 @@ There are often existing comments that explain why the code is doing something a
 # After Making Changes
 
 Run tests and style fixes for new and changed code.
+
+# Git Commit Messages
+
+Follow these commit title conventions:
+
+## Format
+- Use `[component]` tags for changes within a specific component or feature area
+- Keep titles under 120 characters
+- Use imperative mood (command form): "Add", "Fix", "Remove", "Update", "Refactor"
+
+## Imperative Verb Examples:
+- **Add** - new feature or file
+- **Enable/Disable** - toggle features or flags
+
+## Examples
+Good:
+- `[config][pulse] Set max num artifacts to 3`
+- `[db][conversations] Add scenario column`
