@@ -17,6 +17,7 @@ What the code is doing should be obvious from the code itself by on the names of
 If the code is not obvious, use a comment to explain why it is doing something and consider encapsulating the code in a method with a name that explains what it is doing.
 Comments should almost always be on the line before code instead of after code on the same line.
 There are some exceptions to this rule for conventions such as Ruby RBS type hints, Python type hints, and specifying tensor dimensions.
+It's much easier to be informed with comments first instead of reading confusing code and wasting time thinking about it before seeing the explanation.
 
 Do not delete existing comments when making changes, unless the comments are not true anymore.
 There are often existing comments that explain why the code is doing something and those comments should be preserved, unless they are no longer true.
