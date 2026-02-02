@@ -42,6 +42,7 @@ This will review PR #123 using your personal guidelines.
 
 ## Adding New Skills
 
-1. Create a directory in `skills/` with the skill name
-2. Add a `SKILL.md` file with YAML frontmatter and instructions
-3. The skill will be available as `/<skill-name>` in Claude Code
+1. Create a directory in `skills/` with the skill name.
+2. Add a `SKILL.md` file with YAML frontmatter and instructions.
+3. Run the setup steps from above.
+  The skill will be available as `/<skill-name>` in Claude Code.

@@ -8,9 +8,9 @@ allowed-tools: Read, Grep, Bash(gh *)
 
 # Pull Request Review
 
-Review PR #$0 following the guidelines in `~/workspace/configs/ai/code-review-guidelines.md`.
+Review PR #$0 following the guidelines in @~/workspace/configs/ai/code-review-guidelines.md and @~/workspace/configs/ai/AGENTS.md
 
-Read that file first, then:
+Read those files first, then:
 
 1. Fetch PR info with `gh pr view $0` and `gh pr diff $0`
 2. Check for existing comments in the PR with `gh pr comments $0`
