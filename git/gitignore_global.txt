@@ -41,5 +41,6 @@ __pycache__/
 *~
 Debug
 nbproject/
+settings.local.json
 test-output/
 Thumbs.db
