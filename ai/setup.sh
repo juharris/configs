@@ -46,6 +46,6 @@ ln -s "$SCRIPT_DIR/AGENTS.md" "$CLAUDE_DIR/CLAUDE.md"
 echo -e "${GREEN}✓ Linked $CLAUDE_DIR/CLAUDE.md -> $SCRIPT_DIR/AGENTS.md${NC}"
 
 echo ""
-echo -e "${GREEN}✓ Setup complete!${NC} Verify with:"
+echo -e "${GREEN}✓ Setup complete.${NC} Verify with:"
 echo -e "  ${BLUE}ls -la $SKILLS_DIR${NC}"
 echo -e "  ${BLUE}ls -la $CLAUDE_DIR/CLAUDE.md${NC}"
