@@ -1,7 +1,6 @@
 ---
 name: review-pr
 description: Review pull requests using personal guidelines
-disable-model-invocation: true
 argument-hint: [pr-number]
 allowed-tools: Read, Grep, Bash(gh *)
 ---
