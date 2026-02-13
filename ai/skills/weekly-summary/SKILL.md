@@ -13,7 +13,7 @@ Write the entire summary in a single markdown code block so that it can easily b
 
 ## Steps
 
-1. Determine the date 7 days ago: `date -v-7d +%Y-%m-%d` (macOS).
+1. Determine the date 7 days ago: `date -v-7d +%Y-%m-%d` (macOS) or `date -d "7 days ago" +%Y-%m-%d` (Linux).
 
 2. Search for PRs **merged** in the last week across all repos:
    ```
