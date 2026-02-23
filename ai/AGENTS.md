@@ -9,6 +9,7 @@ The user embraces configuration driven development with declarative configuratio
 Prefer encapsulation and re-use over duplication such as copying existing code.
 Instead of copying code, encapsulate the code in a method or class and re-use that method or class where necessary.
 Executives such as the CEO and CTO of the large multi-national corporation where the user works reviews all of their code so the code needs to be robust and clear.
+Directors and colleagues often use the user's code as examples for how to write code in the company, so the user needs to set a good example with their code, Git branch names, and Git commit messages.
 
 # Code Comments
 
@@ -21,38 +22,21 @@ It's much easier to be informed with comments first instead of reading confusing
 
 Do not delete existing comments when making changes, unless the comments are not true anymore.
 There are often existing comments that explain why the code is doing something and those comments should be preserved, unless they are no longer true.
+Retain most existing comments and add new comments as necessary to explain why the code is doing something, but do not delete existing comments unless they are no longer true.
 
 # After Making Changes
 
 Run tests and style fixes for new and changed code.
 
+# Git Branch Names
+In shared repositories, such as ones in the user's company, prefix the branch name with `jus/` to indicate that the branch is being worked on by the user.
+
+Use `gt create <branch-name> --message '<commit message>'` to create a new branch when Graphite is available, otherwise use `git switch --create <branch-name>`.
+
 # Git Commit Messages
 
-Follow these commit title conventions:
-
-## Format
-
-- Use `[component]` tags for changes within a specific component or feature area
-- Keep titles under 120 characters
-- Use imperative mood (command form): "Add", "Fix", "Remove", "Update", "Refactor"
-
-## Imperative Verb Examples:
-
-- **Add** - new feature or file
-- **Enable/Disable** - toggle features or flags
-
-## Examples
-
-Good:
-
-- `[config][pulse] Set max num artifacts to 3`
-- `[db][conversations] Add scenario column`
+Use the /create-commit-message skill to get instructions on how to create commit messages and what to include in the commit message.
 
 # Creating Pull Requests
 
-Use the above Git commit message conventions for the pull request title.
-
-Always make the pull request as a draft.
-
-If a pull request template is available in the repository, then always use it and fill in the details.
-Always summarize what was done and why it was done.
+Use the /create-pull-request skill to get instructions on how to create pull requests and what to include in the pull request description.
