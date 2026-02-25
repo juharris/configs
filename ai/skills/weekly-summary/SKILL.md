@@ -45,6 +45,8 @@ Write the entire summary in a single markdown code block so that it can easily b
 
    **Period:** `<start_date>` to `<today>`
 
+   Start with a brief **highlights** section (3-5 bullets) calling out the most significant accomplishments across all repos and Slack activity.
+
    For each repository that had PR activity:
 
    **`<owner/repo>`**
@@ -57,5 +59,3 @@ Write the entire summary in a single markdown code block so that it can easily b
    - Messages that received many reactions or sparked significant threads
    - Important discussions, decisions, or announcements the user contributed to
    - Brief context on why each was impactful
-
-   End with a brief **highlights** section (3-5 bullets) calling out the most significant accomplishments across all repos and Slack activity.
