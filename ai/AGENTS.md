@@ -35,8 +35,10 @@ Use `gt create <branch-name> --message '<commit message>'` to create a new branc
 
 # Git Commit Messages
 
-Use the /create-commit-message skill to get instructions on how to create commit messages and what to include in the commit message.
+IMPORTANT: You MUST invoke the /create-commit-message skill BEFORE writing any commit message such as when using `git commit`.
+Do NOT write commit messages from memory or general knowledge — always invoke the skill first to get the exact formatting rules.
 
 # Creating Pull Requests
 
-Use the /create-pull-request skill to get instructions on how to create pull requests and what to include in the pull request description.
+IMPORTANT: You MUST invoke the /create-pull-request skill BEFORE creating any pull request such as when using `gh pr create` or `gt submit`.
+Do NOT write PR titles or descriptions from memory or general knowledge — always invoke the skill first to get the exact formatting rules.
