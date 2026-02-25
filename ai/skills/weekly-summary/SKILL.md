@@ -1,6 +1,6 @@
 ---
 name: weekly-summary
-description: Summarize work done in the last week from authored pull requests
+description: Summarize work done in the last week from authored pull requests and Slack activity.
 allowed-tools: Bash(gh *), mcp__playground-slack-mcp__get_messages(*), mcp__playground-slack-mcp__get_user_profile(*), mcp__playground-slack-mcp__get_reactions(*)
 ---
 
