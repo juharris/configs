@@ -17,7 +17,8 @@ Use the above Git commit message conventions for the pull request title.
 Always make the pull request as a draft.
 
 If a pull request template is available in the repository, then always use it and fill in the details.
-The pull request template is normally in the `.github/pull_request_template.md` file in the repository or in `.github/PULL_REQUEST_TEMPLATE/`.
+The pull request template is normally in the `.github/pull_request_template.md` file or in `.github/PULL_REQUEST_TEMPLATE/`.
+If it cannot be found in those locations, such as in a monorepo or when the working directory is a subdirectory, the template may be at the repository root — use `git rev-parse --show-toplevel` to find the root and search there.
 Always summarize what was done and why it was done.
 
 If Graphite is available, then use `gt submit --draft --view` to create the pull request and edit the description once it is created as a draft;
