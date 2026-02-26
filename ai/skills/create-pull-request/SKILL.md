@@ -6,6 +6,12 @@ allowed-tools: Read, Grep, Bash(gh *)
 
 # Git Commit Messages
 
+When asked to make a pull request, first check for the current branch and staged changes.
+Do not commit directly to main; instead, make a new branch first:
+In shared repositories, such as ones in the user's company, prefix the branch name with `jus/` to indicate that the branch is being worked on by the user.
+
+Use `gt create <branch-name> --message '<commit message>'` to create a new branch when Graphite is available, otherwise use `git switch --create <branch-name>`.
+
 Use the /create-commit-message skill to get instructions on how to create commit messages and what to include in the commit message.
 
 # Creating Pull Requests
