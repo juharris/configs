@@ -24,6 +24,12 @@ Do not delete existing comments when making changes, unless the comments are not
 There are often existing comments that explain why the code is doing something and those comments should be preserved, unless they are no longer true.
 Retain most existing comments and add new comments as necessary to explain why the code is doing something, but do not delete existing comments unless they are no longer true.
 
+# Working Directory
+
+Do not change the working directory unless absolutely necessary.
+The `gh` CLI and `git` commands work from any subdirectory within a repository.
+Prefer to stay in the current working directory.
+
 # After Making Changes
 
 Run tests and style fixes for new and changed code.
