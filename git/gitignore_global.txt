@@ -41,6 +41,7 @@ __pycache__/
 *~
 Debug
 nbproject/
+plan.md
 settings.local.json
 test-output/
 Thumbs.db

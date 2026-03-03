@@ -17,6 +17,12 @@ Also reference @~/workspace/configs/ai/AGENTS.md for general coding principles.
 - **Improper config structure**: "Please see https://github.com/juharris/optify for fundamentals about configuration driven development and how to use Optify."
 - **Git-based config preference**: "Cloud configurations outside of Git are terrible: https://github.com/juharris/optify?tab=readme-ov-file#ethos"
 
+#### Aliases that are very similar to the file path.
+
+We do not need aliases that are very similar and just a few characters different from the file path.
+Aliases are mainly for adding very short names or obfuscated names.
+For example, if the file path is `.../options/product/name.yml`, the canonical name is `product/name` so an alias like `product_name` is not helpful and we should recommend removing it.
+
 ### Clarity and Documentation
 
 - **Missing "why"**: "Why? The 'Why is this change necessary?' in the pull request description still doesn't explain why, just further elaborates what is being done. Please explain the reasoning behind the change."
