@@ -28,7 +28,8 @@ Retain most existing comments and add new comments as necessary to explain why t
 
 Do not change the working directory unless absolutely necessary.
 The `gh` CLI and `git` commands work from any subdirectory within a repository.
-Prefer to stay in the current working directory.
+Prefer to stay in the current working directory even within a monorepo.
+Do not `cd <repo root> && ...` unless absolutely necessary.
 
 # After Making Changes
 
