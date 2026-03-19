@@ -1,7 +1,7 @@
 ---
 name: create-pull-request
 description: Create pull requests using personal guidelines. Use this skill to get instructions on how to create pull requests and what to include in the pull request description.
-allowed-tools: Read, Grep, Bash(gh *)
+allowed-tools: Read, Grep
 ---
 
 # Git Commit Messages
@@ -24,8 +24,15 @@ Always make the pull request as a draft.
 
 If a pull request template is available in the repository, then always use it and fill in the details.
 The pull request template is normally in the `.github/pull_request_template.md` file or in `.github/PULL_REQUEST_TEMPLATE/`.
-If it cannot be found in those locations, such as in a monorepo or when the working directory is a subdirectory, the template may be at the repository root — use `git rev-parse --show-toplevel` to find the root and search there.
+IMPORTANT: In monorepos or when the working directory is a subdirectory, the template will be at the repository root, NOT in the current working directory. Always use the absolute path from `git rev-parse --show-toplevel` when searching for the template (e.g., glob for `<repo-root>/.github/pull_request_template.md`).
 Always summarize what was done and why it was done.
+
+## Attribution
+
+Read the user's `~/.claude/settings.json` file and look for the `attribution.pr` field.
+If it exists, append it to the end of the PR body/description.
+
+## Submitting
 
 If Graphite is available, then use `gt submit --draft --view` to create the pull request and edit the description once it is created as a draft;
 otherwise use `gh pr create --draft --fill` and edit the description to include the details of what was done and why it was done.
