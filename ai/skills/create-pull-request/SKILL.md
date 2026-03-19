@@ -24,7 +24,8 @@ Always make the pull request as a draft.
 
 If a pull request template is available in the repository, then always use it and fill in the details.
 The pull request template is normally in the `.github/pull_request_template.md` file or in `.github/PULL_REQUEST_TEMPLATE/`.
-IMPORTANT: In monorepos or when the working directory is a subdirectory, the template will be at the repository root, NOT in the current working directory. Always use the absolute path from `git rev-parse --show-toplevel` when searching for the template (e.g., glob for `<repo-root>/.github/pull_request_template.md`).
+IMPORTANT: In monorepos or when the working directory is a subdirectory, the template will be at the repository root, NOT in the current working directory.
+First run `git rev-parse --show-toplevel` via Bash to get the absolute repo root path, then use that absolute path as the `path` parameter in the Glob tool (e.g., `Glob(pattern: "**/*pull_request*", path: "/absolute/path/to/repo/.github")`). Do NOT use a relative path for the Glob `path` parameter — it will silently search the wrong directory.
 Always summarize what was done and why it was done.
 
 ## Attribution
