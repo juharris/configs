@@ -24,9 +24,10 @@ Always make the pull request as a draft.
 
 If a pull request template is available in the repository, then always use it and fill in the details.
 The pull request template is normally in the `.github/pull_request_template.md` file or in `.github/PULL_REQUEST_TEMPLATE/`.
-IMPORTANT: In monorepos or when the working directory is a subdirectory, the template will be at the repository root, NOT in the current working directory.
-If a template is not found in `.github/`, then run `git rev-parse --show-toplevel` via Bash to get the absolute repo root path, then read the template directly at `<repo_root>/.github/pull_request_template.md` using the Read tool.
-If that file doesn't exist, try `<repo_root>/.github/PULL_REQUEST_TEMPLATE/` directory.
+IMPORTANT: Always read the template directly using the Read tool — do NOT use Glob to search for it, as glob patterns can silently miss exact filenames.
+1. Run `git rev-parse --show-toplevel` via Bash to get the absolute repo root path.
+2. Read `<repo_root>/.github/pull_request_template.md` using the Read tool.
+3. If that file doesn't exist, try reading files in `<repo_root>/.github/PULL_REQUEST_TEMPLATE/` directory.
 Always summarize what was done and why it was done.
 
 ## Attribution
