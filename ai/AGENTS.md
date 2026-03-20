@@ -20,6 +20,9 @@ Comments should almost always be on the line before code instead of after code o
 There are some exceptions to this rule for conventions such as Ruby RBS type hints, Python type hints, and specifying tensor dimensions.
 It's much easier to be informed with comments first instead of reading confusing code and wasting time thinking about it before seeing the explanation.
 
+Comments above methods and classes to explain what they do is fine.
+Such comments should be encouraged and preserved if they are accurate.
+
 Do not delete existing comments when making changes, unless the comments are not true anymore.
 There are often existing comments that explain why the code is doing something and those comments should be preserved, unless they are no longer true.
 Retain most existing comments and add new comments as necessary to explain why the code is doing something, but do not delete existing comments unless they are no longer true.

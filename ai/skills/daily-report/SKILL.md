@@ -12,6 +12,11 @@ Do these in parallel:
 1. Read the last 3 messages from Geekbot DM channel to find the most recent unanswered question.
 2. Start gathering today's work data immediately (PRs merged, PRs opened, PRs reviewed, Slack activity) using the /weekly-summary skill approach but scoped to today only.
 
+When querying `gh` for today's PRs, compute the date dynamically with `date +%Y-%m-%d` (macOS) instead of hardcoding a date string. For example:
+```
+gh pr list --author=@me --state=all --json title,url,state,mergedAt,createdAt,number --search "created:>=$(date +%Y-%m-%d)"
+```
+
 ## Step 2: Determine which question is unanswered
 
 Analyze the conversation to find the FIRST Geekbot question that has NO user reply after it:
