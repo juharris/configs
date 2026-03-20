@@ -52,3 +52,9 @@ gh api repos/OWNER/REPO/pulls/NUMBER/reviews --input /tmp/pr-review.json
 Use a heredoc with `'ENDJSON'` (quoted) to prevent shell interpolation of `$`, `#`, and backticks inside comment bodies.
 
 To find the right line number: read the file with `Read` or check `gh pr diff` output, count the lines in the new file version, and confirm the number before posting.
+
+## Pull Request Titles
+Pull request titles must be concise and describe what was changed.
+Example of a vague title: "small quality of life improvement for dev tools".
+If a title is too vague, short, or does not clearly specific a surface area with one or more "[component]" tags or a "component:" prefix, then change the title following the Git commit guidelines for the /create-commit-message skill.
+If the title was changed, then comment on the first file in the pull request to politely say why the title was changed and why clear titles are important as explained in the /create-commit-message skill and share https://www.linkedin.com/posts/justindharris_git-style-share-commit-title-guidelines-activity-7302130993946140673-xCaQ to help them learn more.

@@ -6,6 +6,11 @@ allowed-tools: Read, Grep
 
 # Git Commit Messages
 
+Clear Git commit messages and pull request titles are important to get the team's attention quickly and ensure the right people notice changes.
+These guidelines are similar to and inspired by Linux Kernel and the Git project's commit message guidelines.
+Proper titles are important for the Git history, Slack notifications, and email notifications where people often use tags in a title or email subject to filters notifications based on their interests.
+There is more inspiration here: https://cbea.ms/git-commit/
+
 ## Before Committing
 
 Never commit directly to the default branch (e.g. `main`, `master`). If on the default branch, create a new branch first:
