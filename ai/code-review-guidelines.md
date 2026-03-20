@@ -56,13 +56,23 @@ Before of changes that delete many lines from existing tests.
 - "I think..." - when questioning ("I think we should still assert something")
 - "Fair enough" / "All good" - when accepting explanations
 
-**Softening language:**
-Never say "you" because it sounds like an accusation or attack, even for a compliment.
-Use "we", "us", and "let's" to create a collaborative tone as we work as a team.
+**CRITICAL — Never say "you" or "your" in review comments.**
+"You" sounds accusatory or personal, even in compliments. Always use "we", "us", "our", and "let's" to create a collaborative tone.
+This rule applies to ALL generated comment text, including inline code review comments posted via the GitHub API.
 
+| Instead of                                      | Write                                             |
+| ----------------------------------------------- | ------------------------------------------------- |
+| "You should use..."                             | "Let's use..."                                    |
+| "You forgot to..."                              | "Looks like we're missing..."                     |
+| "You could simplify this by..."                 | "We could simplify this by..."                    |
+| "If you ever need to..."                        | "If we ever need to..."                           |
+| "Your tests are redundant"                      | "I don't think these tests are really necessary"  |
+| "You're reaching into..."                       | "This reaches into..."                            |
+| "You need to prefix these keys"                 | "Let's prefix these keys"                         |
+
+**Softening language:**
 - "I don't think we need..." / "I don't think these tests are really necessary"
 - "Maybe it would be better..." / "Could we..."
-- "I guess..." when deferring to author's judgment
 
 # Ruby
 
