@@ -28,3 +28,19 @@ This applies to all messages: new threads, replies, DMs, and channel posts. Neve
 - In Slack, use markdown formatting (bold, italic, code blocks, links).
 - Keep messages brief and to the point.
 - When sharing links (PRs, issues, docs), include a short description of what the link is. Try to save people time so that they don't all need to click on the link to understand why it's relevant.
+
+
+## Tagging
+
+Tagging people on Slack is helpful, but give them a brief summary and specific question if they are new to the thread and don't have activity in the thread yet.
+Do not expect people to read the entire thread before responding, so make it easy for them to understand the context and what you're asking for when you tag them.
+
+## Lists
+
+Avoid numbers lists because people tend to later reference items by number instead of descriptive names, which can lead to confusion later.
+Prefer bulleted lists with descriptive text for each item, so that people can reference items by their descriptive text instead of a number.
+
+## References
+
+Give references to documentation and code to support claims.
+Prefer using links such as links to GitHub or documentation, but relative file paths are also acceptable when appropriate and links cannot be determined.

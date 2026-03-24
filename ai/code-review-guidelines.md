@@ -27,6 +27,9 @@ For example, if the file path is `.../options/product/name.yml`, the canonical n
 
 - **Missing "why"**: "Why? The 'Why is this change necessary?' in the pull request description still doesn't explain why, just further elaborates what is being done. Please explain the reasoning behind the change."
 - **Comments after code**: "Let's put instructional comments before code and configurations to explain what we're looking at before trying to read the line; otherwise, we see some confusing code and waste time thinking about it before seeing the explanation. It's much easier to be informed first."
+- **Docstrings above classes and methods are encouraged**: Comments that explain what a class or method does are an exception to the "no what comments" rule.
+They help developers understand purpose at a glance without reading the implementation.
+Long classes and methods should have comments to explain what they do, and such comments should be preserved if they are accurate.
 
 ### Testing Philosophy
 

@@ -51,7 +51,16 @@ gh api repos/OWNER/REPO/pulls/NUMBER/reviews --input /tmp/pr-review.json
 
 Use a heredoc with `'ENDJSON'` (quoted) to prevent shell interpolation of `$`, `#`, and backticks inside comment bodies.
 
-To find the right line number: read the file with `Read` or check `gh pr diff` output, count the lines in the new file version, and confirm the number before posting.
+### Verifying Line Numbers (CRITICAL — DO NOT SKIP)
+
+**Never guess line numbers from grep output, awk output, or mental arithmetic.**
+Piped commands (e.g., `gh pr diff | awk | grep -n`) produce line numbers relative to the pipe output, NOT the actual file. Using those numbers directly results in comments landing on the wrong line.
+
+**Before posting ANY comment, you MUST verify the line number using one of these methods:**
+
+1. **For existing files:** Use the `Read` tool with the file path to see the actual line numbers, then find the target line.
+2. **For new files in the diff:** Use `gh pr diff <PR> | awk '/^diff.*<filename>/,/^diff/' | grep -n '<pattern>'` and then subtract the number of diff header lines (typically 4: `diff`, `index`, `---`, `+++`, `@@`) from the grep result. Or better yet, checkout the PR branch and use `Read`.
+3. **Final verification:** Before submitting the review JSON, print each `line` value and the code expected at that line to confirm they match.
 
 ## Pull Request Titles
 Pull request titles must be concise and describe what was changed.
