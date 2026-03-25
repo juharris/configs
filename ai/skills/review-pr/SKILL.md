@@ -17,6 +17,7 @@ Read those files first, then:
 4. Provide structured feedback with specific line references.
 5. Only add comments to files on specific lines or the file itself or respond to existing comments if they are relevant to the review.
   Always make it clear that you are AI by prefixing comments with how you identify yourself as AI.
+  When a review comment was directly influenced by a specific hint or direction from Justin in the chat, note this in the comment (e.g., "🤖 AI Review (influenced directly by Justin): ...") to distinguish it from independently generated feedback.
   Never comment directly on the pull request and only comment in files.
   Prefer to reply to existing relevant comment threads over starting new threads in a file.
 

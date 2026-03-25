@@ -16,6 +16,12 @@ Always identify the message as AI-generated. Prefix every message with:
 
 This applies to all messages: new threads, replies, DMs, and channel posts. Never send a message without this prefix.
 
+When the content of a message was directly influenced by a specific hint or direction from Justin in the chat, append to the prefix:
+
+> :robot_face: _This message was written by AI and influenced directly by Justin._
+
+This distinguishes messages where Justin actively shaped the content from those where AI acted more autonomously.
+
 ## Tone
 
 - Write in a professional, concise tone appropriate for the channel context.
