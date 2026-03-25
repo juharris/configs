@@ -1,7 +1,7 @@
 ---
 name: daily-report
 description: Summarize work done in the last day from authored pull requests and Slack activity.
-allowed-tools: Bash(gh *), Bash(date *), Bash(sleep *), mcp__playground-slack-mcp__get_messages(*), mcp__playground-slack-mcp__get_user_profile(*), mcp__playground-slack-mcp__get_reactions(*)
+allowed-tools: Bash(date *), Bash(sleep *), mcp__playground-slack-mcp__get_messages(*), mcp__playground-slack-mcp__get_user_profile(*), mcp__playground-slack-mcp__get_reactions(*)
 ---
 
 Check for unanswered messages from Geekbot in the DM channel and answer them.

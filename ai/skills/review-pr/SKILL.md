@@ -2,7 +2,7 @@
 name: review-pr
 description: Review pull requests using personal guidelines
 argument-hint: [pr-number]
-allowed-tools: Read, Grep, Bash(gh *)
+allowed-tools: Read, Grep
 ---
 
 # Pull Request Review
