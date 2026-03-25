@@ -1,7 +1,6 @@
 ---
 name: messaging-etiquette
-description: Use this skill when sending messages on behalf of the user via Slack or other messaging platforms. Covers AI disclosure, tone, and formatting guidelines.
-allowed-tools: mcp__playground-slack-mcp__send_message(*)
+description: Use this skill when sending messages on behalf of the user via Slack or other messaging platforms. Covers AI disclosure, tone, and formatting guidelines. Also covers GitHub PR commenting etiquette.
 ---
 
 # Messaging Etiquette
@@ -50,3 +49,9 @@ Prefer bulleted lists with descriptive text for each item, so that people can re
 
 Give references to documentation and code to support claims.
 Prefer using links such as links to GitHub or documentation, but relative file paths are also acceptable when appropriate and links cannot be determined.
+
+## GitHub Pull Requests
+
+- **Never post PR-level comments** (i.e. never use `gh pr comment`). PR-level comments are noise.
+- **Always use line-level review comments** that point to specific code in the diff. Use `gh api` to post review comments on specific lines.
+- If there is no specific line to comment on, then either comment on the first changed file, but not a specific line and reconsider whether the comment is necessary at all.
