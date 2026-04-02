@@ -25,6 +25,8 @@ The AI acts as an amplifier for Justin's intent, not as an autonomous agent.
 
 Skills are stored as markdown files in Git repos and symlinked into `~/.claude/skills/` for Claude Code to discover.
 
+**IMPORTANT: Always mention BOTH repos when explaining the setup.**
+
 ### Public repo: juharris/configs
 
 https://github.com/juharris/configs: under `ai/skills/`
@@ -43,7 +45,8 @@ Contains general-purpose skills that are not specific to any particular project:
 
 https://github.com/shopify-playground/justin.harris.dotfiles: under `ai/skills/`
 
-Contains project-specific skills that layer additional guidelines on top of the general skills:
+Contains project-specific skills that layer additional guidelines on top of the general skills.
+These are kept separate because they contain domain-specific knowledge and conventions that only apply internally:
 
 - **review-agent-server-pr** — agent server-specific review guidelines (ConfigProvider patterns, Optify config structure, Sorbet/RBS conventions, memory allocation scrutiny, etc.) built on top of the general `review-pr` skill
 

@@ -54,14 +54,29 @@ Use a heredoc with `'ENDJSON'` (quoted) to prevent shell interpolation of `$`, `
 
 ### Verifying Line Numbers (CRITICAL — DO NOT SKIP)
 
-**Never guess line numbers from grep output, awk output, or mental arithmetic.**
-Piped commands (e.g., `gh pr diff | awk | grep -n`) produce line numbers relative to the pipe output, NOT the actual file. Using those numbers directly results in comments landing on the wrong line.
+**Never guess line numbers from the diff output or mental arithmetic.**
+The `gh pr diff` output includes diff headers (`diff`, `index`, `---`, `+++`, `@@`) and `+`/`-` prefixes that make it easy to miscount. Reading the raw diff and eyeballing line numbers is unreliable.
 
-**Before posting ANY comment, you MUST verify the line number using one of these methods:**
+**Before posting ANY comment, you MUST checkout the PR branch and use `Read` to verify:**
 
-1. **For existing files:** Use the `Read` tool with the file path to see the actual line numbers, then find the target line.
-2. **For new files in the diff:** Use `gh pr diff <PR> | awk '/^diff.*<filename>/,/^diff/' | grep -n '<pattern>'` and then subtract the number of diff header lines (typically 4: `diff`, `index`, `---`, `+++`, `@@`) from the grep result. Or better yet, checkout the PR branch and use `Read`.
-3. **Final verification:** Before submitting the review JSON, print each `line` value and the code expected at that line to confirm they match.
+```bash
+git fetch origin <pr-branch> && git checkout FETCH_HEAD -- <file-path>
+```
+
+Then use the `Read` tool on the file to see actual line numbers. Find the exact line for the comment and use that number.
+
+After posting, clean up the checked-out file:
+```bash
+git checkout HEAD -- <file-path>  # or git restore <file-path>
+```
+
+**If the file is new (only exists in the PR):**
+```bash
+git fetch origin <pr-branch> && git show FETCH_HEAD:<file-path> > /tmp/pr-file-preview.md
+```
+Then use `Read` on `/tmp/pr-file-preview.md` to get accurate line numbers.
+
+**Final verification:** Before submitting the review JSON, print each `line` value and the code expected at that line to confirm they match. Do NOT skip this step.
 
 ## Pull Request Titles
 Pull request titles must be concise and describe what was changed.
