@@ -35,6 +35,13 @@ The `gh` CLI and `git` commands work from any subdirectory within a repository.
 Prefer to stay in the current working directory even within a monorepo.
 Do not `cd <repo root> && ...` unless absolutely necessary.
 
+# Development Commands
+
+@README.md
+
+Always check the README.md in the current folder (or repository root) for instructions on how to build, lint, run tests, and perform other development tasks.
+Do NOT guess or make up commands — use what the project documents.
+
 # After Making Changes
 
 Run tests and style fixes for new and changed code.
