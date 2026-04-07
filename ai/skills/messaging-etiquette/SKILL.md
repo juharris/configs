@@ -21,6 +21,10 @@ When the content of a message was directly influenced by a specific hint or dire
 
 This distinguishes messages where Justin actively shaped the content from those where AI acted more autonomously.
 
+## Typing Indicator
+
+Before composing a reply, add a :robot_face: reaction to the message you are responding to. This signals to the recipient that an AI-assisted reply is being drafted. After sending the reply, remove the :robot_face: reaction.
+
 ## Tone
 
 - Write in a professional, concise tone appropriate for the channel context.
