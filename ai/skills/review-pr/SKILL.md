@@ -57,24 +57,15 @@ Use a heredoc with `'ENDJSON'` (quoted) to prevent shell interpolation of `$`, `
 **Never guess line numbers from the diff output or mental arithmetic.**
 The `gh pr diff` output includes diff headers (`diff`, `index`, `---`, `+++`, `@@`) and `+`/`-` prefixes that make it easy to miscount. Reading the raw diff and eyeballing line numbers is unreliable.
 
-**Before posting ANY comment, you MUST checkout the PR branch and use `Read` to verify:**
+**Before posting ANY comment, export the PR file to /tmp and use `Read` to verify.**
+
+**NEVER use `git checkout` to pull PR files into the working tree.** Always use `git show` to export to `/tmp`.
 
 ```bash
-git fetch origin <pr-branch> && git checkout FETCH_HEAD -- <file-path>
+git fetch origin <commit-sha> && git show <commit-sha>:<file-path> > /tmp/pr-<filename>
 ```
 
-Then use the `Read` tool on the file to see actual line numbers. Find the exact line for the comment and use that number.
-
-After posting, clean up the checked-out file:
-```bash
-git checkout HEAD -- <file-path>  # or git restore <file-path>
-```
-
-**If the file is new (only exists in the PR):**
-```bash
-git fetch origin <pr-branch> && git show FETCH_HEAD:<file-path> > /tmp/pr-file-preview.md
-```
-Then use `Read` on `/tmp/pr-file-preview.md` to get accurate line numbers.
+Then use the `Read` tool on `/tmp/pr-<filename>` to see actual line numbers. Find the exact line for the comment and use that number.
 
 **Final verification:** Before submitting the review JSON, print each `line` value and the code expected at that line to confirm they match. Do NOT skip this step.
 
