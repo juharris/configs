@@ -1,7 +1,7 @@
 ---
 name: peer-feedback
 description: Gather evidence of interactions with a peer and draft structured peer feedback with ratings and written responses.
-argument-hint: <person's name>
+argument-hint: "[person's name]"
 ---
 
 # Peer Feedback

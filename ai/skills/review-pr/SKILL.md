@@ -1,7 +1,7 @@
 ---
 name: review-pr
 description: Review pull requests using personal guidelines
-argument-hint: [pr-number]
+argument-hint: "[pr-number]"
 allowed-tools: Read, Grep
 ---
 
