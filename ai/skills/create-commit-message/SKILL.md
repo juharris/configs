@@ -23,9 +23,24 @@ Follow these commit title conventions:
 
 ## Format
 
-- Use `[component]` tags for changes within a specific component or feature area
-- Keep titles under 120 characters
+- Start with `[component]` tags for changes within a specific component or feature area
 - Use imperative mood (command form): "Add", "Fix", "Remove", "Update", "Refactor"
+- Keep titles under 120 characters
+
+### Monorepo title tags
+
+In monorepos (e.g. world), the first `[tag]` in the PR title should be derived from the zone or project directory, not only the component within it.
+Use the parent or ancestor folder name that identifies the project within the monorepo.
+
+For example:
+- Good: `[agent-server][config] Add ...`
+- Bad: `[config] Add ...` (missing project context — unclear which project in the monorepo)
+
+Determine the project folder by looking at the current working directory relative to the repo root.
+Use the most specific folder that identifies the project (typically the last
+segment of the zone path).
+
+In repos like the optify monorepo, the first tag is typically based on the coding language if only one language is changed and this must sometimes be determined by looking at the parent's parent folder.
 
 ## Imperative Verb Examples:
 

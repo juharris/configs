@@ -7,20 +7,22 @@ allowed-tools: Read, Grep
 # Git Commit Messages
 
 When asked to make a pull request, first check for the current branch and staged changes.
-Do not commit directly to main; instead, make a new branch first:
+Do not commit directly to main (unless explicitly asked); instead, make a new branch first:
 In shared repositories, such as ones in the user's company, prefix the branch name with `jus/` to indicate that the branch is being worked on by the user.
 
 Use `gt create <branch-name> --message '<commit message>'` to create a new branch when Graphite is available, otherwise use `git switch --create <branch-name>`.
 
 Use the /create-commit-message skill to get instructions on how to create commit messages and what to include in the commit message.
 
-# Creating Pull Requests
+## Creating Pull Requests
 
 Make sure to push the branch before creating the pull request.
 
-Use the above Git commit message conventions for the pull request title.
+Use the /create-commit-message skill conventions for the pull request title.
 
 Always make the pull request as a draft.
+
+## Pull Request Description
 
 If a pull request template is available in the repository, then always use it and fill in the details.
 The pull request template is normally in the `.github/pull_request_template.md` file or in `.github/PULL_REQUEST_TEMPLATE/`.
