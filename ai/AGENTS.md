@@ -39,8 +39,11 @@ Do not `cd <repo root> && ...` unless absolutely necessary.
 
 @README.md
 
-Always check the README.md in the current folder (or repository root) for instructions on how to build, lint, run tests, and perform other development tasks.
+IMPORTANT: You MUST read the README.md in the current folder (or repository root) BEFORE running any build, lint, or test command.
 Do NOT guess or make up commands — use what the project documents.
+
+When the shell cannot find a documented command (e.g. `yarn`, `node`), activate the project's runtime first with `nvm use` before retrying.
+Do NOT invent alternative commands — fix the environment.
 
 # After Making Changes
 
