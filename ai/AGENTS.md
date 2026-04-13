@@ -35,6 +35,26 @@ The `gh` CLI and `git` commands work from any subdirectory within a repository.
 Prefer to stay in the current working directory even within a monorepo.
 Do not `cd <repo root> && ...` unless absolutely necessary.
 
+# Verifying Before Claiming
+
+NEVER claim how a system, tool, CLI, API, or infrastructure works based on assumption or general knowledge.
+Before making ANY claim about system behavior, you MUST have evidence from at least one of: reading the source code, running the command with `--help`, searching online documentation with WebSearch/WebFetch, or observing actual output.
+
+When you don't know how something works, SEARCH ONLINE FIRST. Use WebSearch to find official documentation, blog posts, and API references.
+Do not spend time speculating or exploring code when a web search would give a definitive answer faster.
+This is especially important for third-party tools, infrastructure systems, gems, and platform behavior that is not defined in the current codebase.
+
+If you still don't know after searching, say "I don't know" and explain what you searched for. Do not speculate, guess, or fabricate explanations.
+Getting it wrong wastes the user's time, damages their credibility with colleagues, and can cause real harm when they act on your wrong information.
+
+When corrected, STOP, re-read what the user said, and verify before responding again. Do not repeat the same wrong answer in different words.
+
+# CLI Commands
+
+NEVER guess at CLI syntax, flags, or subcommands. ALWAYS run `<command> --help` or `<command> <subcommand> --help` first and read the output before suggesting or executing any command you are not 100% certain about.
+This applies to all CLIs: `gt`, `gh`, `git`, `dev`, `tec`, and any other tool.
+The user's credibility depends on correct commands. A wrong flag or invented subcommand wastes time and erodes trust.
+
 # Development Commands
 
 @README.md
@@ -63,3 +83,12 @@ Do NOT write commit messages from memory or general knowledge — always invoke 
 
 IMPORTANT: You MUST invoke the /create-pull-request skill BEFORE creating any pull request such as when using `gh pr create` or `gt submit`.
 Do NOT write PR titles or descriptions from memory or general knowledge — always invoke the skill first to get the exact formatting rules.
+
+# Communicating on Behalf of the User
+
+The user's reputation is on the line when you draft messages to colleagues, create issues, or post in channels.
+Before reporting a bug, issue, or system behavior to anyone:
+- Verify your understanding by reading the actual code, not by guessing at how systems connect.
+- Confirm with evidence (queries, code paths, test output) that what you're claiming is true.
+- If you're uncertain, say so explicitly rather than presenting speculation as fact.
+Getting this wrong wastes other people's time and damages the user's professional reputation.
