@@ -26,6 +26,7 @@ Follow these commit title conventions:
 - Start with `[component]` tags for changes within a specific component or feature area
 - Use imperative mood (command form): "Add", "Fix", "Remove", "Update", "Refactor"
 - Keep titles under 120 characters
+- Do not hard-wrap lines in the commit message body. Let the terminal or UI handle wrapping.
 
 ### Monorepo title tags
 

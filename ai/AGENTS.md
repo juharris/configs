@@ -35,6 +35,10 @@ The `gh` CLI and `git` commands work from any subdirectory within a repository.
 Prefer to stay in the current working directory even within a monorepo.
 Do not `cd <repo root> && ...` unless absolutely necessary.
 
+When using Grep, Glob, Read, or any search tool to access files within the current working directory, use relative paths or omit the path parameter entirely.
+Do NOT use absolute paths to files in the current repo — absolute paths trigger unnecessary permission prompts that waste time.
+Only use absolute paths for files genuinely outside the current working directory (e.g., `~/.claude/settings.json`, `/tmp/...`).
+
 # Verifying Before Claiming
 
 NEVER claim how a system, tool, CLI, API, or infrastructure works based on assumption or general knowledge.

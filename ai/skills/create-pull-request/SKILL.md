@@ -31,11 +31,18 @@ IMPORTANT: Always read the template directly using the Read tool — do NOT use 
 2. Read `<repo_root>/.github/pull_request_template.md` using the Read tool.
 3. If that file doesn't exist, try reading files in `<repo_root>/.github/PULL_REQUEST_TEMPLATE/` directory.
 Always summarize what was done and why it was done.
+Do not hard-wrap lines in the PR description. GitHub renders markdown and handles wrapping automatically.
 
 ## Attribution
 
 Read the user's `~/.claude/settings.json` file and look for the `attribution.pr` field.
 If it exists, append it to the end of the PR body/description.
+
+## Requesting Reviews
+
+Never guess a person's GitHub handle. GitHub handles are almost never derivable from a person's name.
+GitHub aliases can be found in the Git history and most people set their names in their GitHub profile.
+For Shopify repos, the company's internal Vault tools can be used to find a person by their email or name and then read the GitHub field from the response before requesting a review with `gh pr edit --add-reviewer`.
 
 ## Submitting
 
