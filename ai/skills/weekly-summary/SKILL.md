@@ -1,7 +1,7 @@
 ---
 name: weekly-summary
-description: Summarize work done in the last week from authored pull requests and Slack activity.
-allowed-tools: mcp__playground-slack-mcp__get_messages(*), mcp__playground-slack-mcp__get_user_profile(*), mcp__playground-slack-mcp__get_reactions(*)
+description: Summarize work done in the last week from authored pull requests, Slack activity, and calendar meetings.
+allowed-tools: Bash(date *)
 ---
 
 # Weekly Work Summary
@@ -13,9 +13,15 @@ Focus on the impact of the work and how it contributes to the company's goals an
 Check for the current user's Slack messages in the last week with the most reactions or threads they started with many comments to find important work they did that may not be captured in pull requests, such as important discussions or decisions they contributed to.
 
 Also look for pull requests they reviewed or commented on a lot.
-Look for pull requests they approved or requested changes. 
+Look for pull requests they approved or requested changes.
+
+Check the calendar for meetings in the period. Include notable meetings (project syncs, reviews, 1:1s with decisions) as context for what the user worked on, and summarize them alongside PRs and Slack activity.
 
 Write the entire summary in a single markdown code block so that it can easily be copied into another tool.
+
+## Discretion with private sources
+
+Summaries are shared with colleagues and leadership, so use discretion when drawing from DMs, private channels, and 1:1 meetings. It's fine to mention projects, themes, outcomes, and collaborators — e.g. "Nick and I discussed improving the token cache" is fine. Don't quote private messages verbatim, and don't attach names to anything negative or sensitive (criticism, conflict, performance, hiring). Keep it at the "what I worked on" level, not the "what was said" level.
 
 ## Steps
 

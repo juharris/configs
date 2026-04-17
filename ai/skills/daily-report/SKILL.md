@@ -1,7 +1,7 @@
 ---
 name: daily-report
-description: Summarize work done in the last day from authored pull requests and Slack activity.
-allowed-tools: Bash(date *), Bash(sleep *), mcp__playground-slack-mcp__get_messages(*), mcp__playground-slack-mcp__get_user_profile(*), mcp__playground-slack-mcp__get_reactions(*)
+description: Summarize work done in the last day from authored pull requests, Slack activity, and calendar meetings.
+allowed-tools: Bash(date *), Bash(sleep *)
 ---
 
 Check for unanswered messages from Geekbot in the DM channel and answer them.
@@ -10,7 +10,7 @@ Check for unanswered messages from Geekbot in the DM channel and answer them.
 
 Do these in parallel:
 1. Read the last 3 messages from Geekbot DM channel to find the most recent unanswered question.
-2. Start gathering today's work data immediately (PRs merged, PRs opened, PRs reviewed, Slack activity) using the /weekly-summary skill approach but scoped to today only.
+2. Gather today's work data (PRs, Slack activity, calendar meetings) using the /weekly-summary skill approach, but scoped to today only.
 
 When querying `gh` for today's PRs, compute the date dynamically with `date +%Y-%m-%d` (macOS) instead of hardcoding a date string. For example:
 ```
@@ -33,8 +33,9 @@ This question uses interactive buttons in Slack. Tell the user to pick their ans
 Use the work data gathered in Step 1 to compose a summary.
 - Do not use Markdown formatting — use plain text with typical Slack formatting (bullets with •).
 - Put the most impactful highlights first at the top.
-- Include: merged PRs, open PRs, notable PR reviews, important Slack discussions.
+- Include: merged PRs, open PRs, notable PR reviews, important Slack discussions, notable meetings.
 - Emphasize WHY the work matters, not just what was done.
+- Follow the discretion guidance from the /weekly-summary skill when drawing from private sources.
 
 ### "Is there anything blocking your progress?" — Answer with just a dash
 Send: `-`

@@ -38,6 +38,7 @@ Contains general-purpose skills that are not specific to any particular project:
 - **daily-report** — summarize work done in the last day
 - **explain-ai-workflow** — this skill; answers questions about the AI workflow setup
 - **messaging-etiquette** — AI disclosure, tone, formatting, and tagging guidelines for Slack messages and GitHub PR comments
+- **morning-focus** — morning briefing that aggregates PRs, reviews, issues, Slack, calendar, Vault (Shopify internal wiki), and manager messages into a top-3 focus list
 - **review-pr** — general PR review guidelines and code review principles
 - **weekly-summary** — summarize work done in the last week
 

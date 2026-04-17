@@ -48,6 +48,36 @@ After sending the reply, remove the :robot_face: reaction.
 - Keep messages brief and to the point.
 - When sharing links (PRs, issues, docs), include a short description of what the link is. Try to save people time so that they don't all need to click on the link to understand why it's relevant.
 
+### Slack link formatting
+
+- Sending a **new** message (`chat.postMessage` / `send_message`): use markdown `[text](url)` or Slack's `<url|text>` — both render as clickable links. The server parses the text into link blocks automatically.
+- **Editing** an existing message (`chat.update`): the server does NOT re-parse `<url|text>` syntax. Passing plain text with that syntax will display the raw angle-bracket string in the client. To get a working link on edit, you MUST pass a Block Kit `blocks` payload with an explicit `link` element:
+
+  ```json
+  {
+    "type": "rich_text",
+    "elements": [{
+      "type": "rich_text_section",
+      "elements": [
+        { "type": "text", "text": "See " },
+        { "type": "link", "url": "https://...", "text": "this post" },
+        { "type": "text", "text": " for details." }
+      ]
+    }]
+  }
+  ```
+
+  Also pass a `text` fallback for notifications/accessibility, but the `blocks` payload is what renders.
+
+### Linking to a Slack message in a thread
+
+Use the canonical permalink format: `https://{workspace}.slack.com/archives/{channel_id}/p{ts_without_dot}?thread_ts={root_ts}&cid={channel_id}`.
+- `ts_without_dot` is the reply message's timestamp with the `.` removed (16 digits).
+- `thread_ts` is the thread root message's timestamp (with the dot).
+- Without `thread_ts` and `cid`, the link may fail to open the correct thread context.
+- When embedding the URL in a Slack message being sent as raw text, leave the `&` as-is (don't HTML-encode to `&amp;`).
+- When in doubt, call `chat.getPermalink` to get the canonical URL — but note that some enterprise workspaces restrict this API, in which case construct the URL manually using the pattern above.
+
 
 ## Tagging
 
