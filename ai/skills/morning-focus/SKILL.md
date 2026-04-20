@@ -32,12 +32,15 @@ Fire all of these in one batch. Do not serialize them.
 
 Important: `gh search prs` and `gh pr view` expose different `--json` fields. If a query errors with "Unknown JSON field", run the same command with an invalid field (e.g. `--json _`) to get the current list of valid fields, then retry. Do not hardcode field lists from memory. In particular, review decision and CI status are typically only available on `gh pr view <number> --repo <owner/repo>`, so follow up per-PR on the 1–3 most interesting open PRs (usually your most recent non-draft PR awaiting review).
 
-- **My open PRs:**
+- **My open PRs (authored):**
   `gh search prs --author @me --state open --json repository,title,url,number,createdAt,updatedAt,isDraft,commentsCount --limit 50`
-- **PRs awaiting my review:**
-  `gh search prs --review-requested @me --state open --json repository,title,url,number,author,createdAt,updatedAt --limit 50`
-- **PRs I've reviewed recently that may need another pass:**
-  `gh search prs --reviewed-by @me --state open --updated ">=$DATE_3D" --json repository,title,url,number,author,updatedAt --limit 50`
+- **PRs assigned to me (I may not be the author):**
+  `gh search prs --assignee @me --state open --json repository,title,url,number,author,createdAt,updatedAt,isDraft,commentsCount --limit 50`
+  Merge these with the authored list under "PRs — mine", deduping by `url`. Drafts are kept here (they're still yours to drive).
+- **PRs awaiting my review:** (exclude drafts — others' drafts aren't ready for review)
+  `gh search prs --review-requested @me --state open --draft=false --json repository,title,url,number,author,createdAt,updatedAt --limit 50`
+- **PRs I've reviewed recently that may need another pass:** (exclude drafts)
+  `gh search prs --reviewed-by @me --state open --draft=false --updated ">=$DATE_3D" --json repository,title,url,number,author,updatedAt --limit 50`
 - **Issues assigned to me:**
   `gh search issues --assignee @me --state open --json repository,title,url,number,updatedAt --limit 50`
 - **Issues in shop/issues-sidekick mentioning me recently:**
@@ -62,7 +65,7 @@ Important: `gh search prs` and `gh pr view` expose different `--json` fields. If
 
 Cross-reference the raw data to find what actually needs attention. An item is "unaddressed" when:
 
-- **PRs I authored:** someone commented or requested changes in the last 3 days and Justin hasn't pushed a commit or reply since.
+- **PRs I authored or am assigned to:** someone commented or requested changes in the last 3 days and Justin hasn't pushed a commit or reply since.
 - **PRs awaiting review:** requested >24h ago with no review from Justin, or the author pinged again after a prior review.
 - **Issues:** assigned to Justin with no linked PR or recent comment from him.
 - **Slack threads:** someone asked Justin a question or mentioned him, and his user ID does not appear in the replies after the mention.
