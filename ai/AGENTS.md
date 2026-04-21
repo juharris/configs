@@ -96,3 +96,6 @@ Before reporting a bug, issue, or system behavior to anyone:
 - Confirm with evidence (queries, code paths, test output) that what you're claiming is true.
 - If you're uncertain, say so explicitly rather than presenting speculation as fact.
 Getting this wrong wastes other people's time and damages the user's professional reputation.
+
+IMPORTANT: You MUST invoke the /messaging-etiquette skill BEFORE sending any message on the user's behalf — Slack DMs, Slack channel posts, GitHub comments, GitHub PR review comments, or any other outbound communication.
+Do NOT improvise AI disclosure text, attribution format, or formatting from memory — always invoke the skill first to get the exact required prefix (e.g. `🤖 _This message was written by AI on behalf of Justin._`) and the other etiquette rules.

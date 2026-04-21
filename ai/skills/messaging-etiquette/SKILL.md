@@ -50,24 +50,40 @@ After sending the reply, remove the :robot_face: reaction.
 
 ### Slack link formatting
 
-- Sending a **new** message (`chat.postMessage` / `send_message`): use markdown `[text](url)` or Slack's `<url|text>` — both render as clickable links. The server parses the text into link blocks automatically.
-- **Editing** an existing message (`chat.update`): the server does NOT re-parse `<url|text>` syntax. Passing plain text with that syntax will display the raw angle-bracket string in the client. To get a working link on edit, you MUST pass a Block Kit `blocks` payload with an explicit `link` element:
+Slack's native mrkdwn uses `<url|anchor text>` for links, not GitHub-style `[text](url)`. The MCP `send_message` tool accepts GitHub markdown via its `markdown_text` parameter and converts it before posting; raw `chat.postMessage` / `chat.update` do no conversion. The rules below follow from that distinction:
 
-  ```json
-  {
-    "type": "rich_text",
-    "elements": [{
-      "type": "rich_text_section",
-      "elements": [
-        { "type": "text", "text": "See " },
-        { "type": "link", "url": "https://...", "text": "this post" },
-        { "type": "text", "text": " for details." }
-      ]
-    }]
-  }
-  ```
+- Sending a **new** message via the MCP `send_message` tool (`markdown_text` param): `[text](url)` works because the tool rewrites it to `<url|text>` before calling the API. Plain URLs and `<url|text>` also work.
+- Sending a **new** message via raw `chat.postMessage` (the `text` field): use Slack's native `<url|text>` or a plain URL. Do NOT use `[text](url)` — the URL will auto-link but the `[text]` brackets will render as literal characters alongside the bare URL.
+- **Editing** an existing message (`chat.update` with the `text` field): no conversion runs.
+  - `<url|text>` is NOT parsed — the angle brackets are HTML-escaped and show up literally.
+  - `[text](url)` is NOT parsed — the brackets render as literal characters.
+  - **Plain URLs DO auto-link on edit.** If you don't need anchor text, just use the bare URL.
+  - **If you need anchor text on edit**, pass a Block Kit `blocks` payload with an explicit `link` element:
 
-  Also pass a `text` fallback for notifications/accessibility, but the `blocks` payload is what renders.
+    ```json
+    {
+      "type": "rich_text",
+      "elements": [{
+        "type": "rich_text_section",
+        "elements": [
+          { "type": "text", "text": "See " },
+          { "type": "link", "url": "https://...", "text": "this post" },
+          { "type": "text", "text": " for details." }
+        ]
+      }]
+    }
+    ```
+
+    Also pass a `text` fallback for notifications/accessibility, but the `blocks` payload is what renders.
+
+### Slack bold/italic formatting
+
+- Sending a **new** message via the MCP `send_message` tool (`markdown_text` param): the MCP converts GitHub-style markdown to Slack's native mrkdwn. `**bold**` becomes bold, `_italic_` stays italic. Beware: `*single-star*` is converted to **italic** (not bold), because the MCP maps `*` → `_`. If you want bold, use `**bold**` on send.
+- **Editing** an existing message (`chat.update` with the `text` field): no conversion runs. The text must already be in Slack's native mrkdwn:
+  - `*bold*` (single asterisks) — bold
+  - `_italic_` — italic
+  - `**bold**` renders as literal `**bold**` with the asterisks visible
+- When editing a message you previously sent with `**bold**`, you MUST rewrite it as `*bold*` or the asterisks will show up in the client. The failure is silent — the API returns `ok: true` but the rendered message is broken.
 
 ### Linking to a Slack message in a thread
 
@@ -98,4 +114,4 @@ Prefer using links such as links to GitHub or documentation, but relative file p
 
 - **Never post PR-level comments** (i.e. never use `gh pr comment`). PR-level comments are noise.
 - **Always use line-level review comments** that point to specific code in the diff. Use `gh api` to post review comments on specific lines.
-- If there is no specific line to comment on, then either comment on the first changed file, but not a specific line and reconsider whether the comment is necessary at all.
+- If there is no specific line the comment applies to, first reconsider whether the comment is necessary at all. If it is, attach it to the first changed file at the file level (not a specific line).
