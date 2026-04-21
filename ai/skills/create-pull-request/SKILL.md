@@ -48,3 +48,17 @@ For Shopify repos, the company's internal Vault tools can be used to find a pers
 
 If Graphite is available, then use `gt submit --draft --view` to create the pull request and edit the description once it is created as a draft;
 otherwise use `gh pr create --draft --fill` and edit the description to include the details of what was done and why it was done.
+
+## Reporting Back to the User
+
+This is about your chat reply to the user, not the PR body itself.
+
+### If Graphite was used
+
+If — and only if — the pull request was created with `gt submit`, conclude your response to the user with the Graphite link as the very last line.
+`gt submit` prints a URL like `https://app.graphite.com/github/pr/<owner>/<repo>/<number>` — capture that URL from the submit output and end the message with it (plain URL or a markdown link is fine).
+
+### If Graphite was not used
+
+Conclude with a github.com link.
+Do not include a Graphite link when the PR was created with `gh pr create` or any other non-Graphite flow; do not construct a Graphite URL from the repo slug and PR number.
