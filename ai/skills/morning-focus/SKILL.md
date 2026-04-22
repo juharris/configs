@@ -37,10 +37,29 @@ Important: `gh search prs` and `gh pr view` expose different `--json` fields. If
 - **PRs assigned to me (I may not be the author):**
   `gh search prs --assignee @me --state open --json repository,title,url,number,author,createdAt,updatedAt,isDraft,commentsCount --limit 50`
   Merge these with the authored list under "PRs — mine", deduping by `url`. Drafts are kept here (they're still yours to drive).
-- **PRs awaiting my review:** (exclude drafts — others' drafts aren't ready for review)
-  `gh search prs --review-requested @me --state open --draft=false --json repository,title,url,number,author,createdAt,updatedAt --limit 50`
-- **PRs I've reviewed recently that may need another pass:** (exclude drafts)
+  **For each non-draft PR in this merged list, fetch the real state** so you know what action is actually needed:
+  `gh pr view <number> --repo <owner/repo> --json reviewDecision,statusCheckRollup,mergeable,latestReviews`
+  Use the raw state to decide what to say — do NOT invent fixed tags. Phrase the bullet around the concrete next action the state implies:
+  - `reviewDecision == "APPROVED"` + CI green + `mergeable == "MERGEABLE"` → the PR is ready to land. Say so plainly and surface it; this often belongs in the top 3.
+  - `reviewDecision == "CHANGES_REQUESTED"` → name the reviewer whose feedback is outstanding so Justin knows whose concerns to address.
+  - Any failing check in `statusCheckRollup` → name the failing check(s) so Justin can go straight to them.
+  - No review yet and age > N days → note that reviewers haven't looked; consider whether a nudge is warranted.
+  - Draft → mention age only if it's old enough to warrant deciding whether to park it.
+  The point: report the actual state the API returned. If GitHub changes its vocabulary or adds a new state, describe it directly rather than forcing it into a predetermined tag.
+- **PRs genuinely awaiting my first review** (requested reviewer AND I have never submitted a review):
+  `gh search prs --review-requested @me --state open --draft=false --json repository,title,url,number,author,createdAt,updatedAt --limit 50 -- '-reviewed-by:@me'`
+  **Why the `-reviewed-by:@me` negation matters:** `--review-requested @me` alone returns every PR where Justin is on the reviewer list, and GitHub does NOT remove him from that list after he approves. Adding `-reviewed-by:@me` filters out PRs he's already reviewed in any state (APPROVED / COMMENTED / CHANGES_REQUESTED).
+  **Syntax:** all `gh` flags (including `--json`, `--limit`) must come BEFORE the `--` separator. The `--` ends flag parsing, and the quoted `'-reviewed-by:@me'` is passed through as a raw GitHub search qualifier. If you put `--json` after `--`, it's treated as a literal query string and you'll get tabular output instead of JSON.
+  These PRs are safe to list under "PRs — awaiting my review" with no further filtering — by construction, the ball is with Justin.
+- **PRs I've reviewed recently that the author may have pushed back on:** (potential re-review asks)
   `gh search prs --reviewed-by @me --state open --draft=false --updated ">=$DATE_3D" --json repository,title,url,number,author,updatedAt --limit 50`
+  The search layer cannot tell whether the author pushed new commits after Justin's last review, so per-PR follow-up is required:
+  `gh pr view <number> --repo <owner/repo> --json reviewDecision,latestReviews,commits`
+  Then include the PR under "PRs — awaiting my review" ONLY if ALL of these hold:
+  1. `reviewDecision != "APPROVED"` (if it's APPROVED the PR is green — nobody is blocked).
+  2. Justin's latest review (the entry in `latestReviews` where `author.login == "juharris"`) has `state` of `COMMENTED` or `CHANGES_REQUESTED` — not `APPROVED`.
+  3. The last commit's `committedDate` (from `commits[-1]`) is LATER than Justin's review `submittedAt` — i.e. the author has actually pushed something since his feedback.
+  If any condition fails, drop it. Note that GitHub does not invalidate an existing approval when the author pushes new commits (unless the repo enforces it), so a later commit after an APPROVED review is still not blocking Justin.
 - **Issues assigned to me:**
   `gh search issues --assignee @me --state open --json repository,title,url,number,updatedAt --limit 50`
 - **Issues in shop/issues-sidekick mentioning me recently:**
