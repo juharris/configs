@@ -35,7 +35,7 @@ Use the work data gathered in Step 1 to compose a summary.
 - Put the most impactful highlights first at the top.
 - Include: merged PRs, open PRs, notable PR reviews, important Slack discussions, notable meetings.
 - Emphasize WHY the work matters, not just what was done.
-- Follow the discretion guidance from the /weekly-summary skill when drawing from private sources.
+- Follow the discretion guidance from the /weekly-summary skill when drawing from private sources. Minimize names — only name someone when attribution is load-bearing (they own the work, or credit is due). Do not name people for routine reviews, DMs, or meeting attendance, and never attach a name to anything that could read as criticism or surface something private about them (calendars, interviews, hiring, personal behavior) — drop the name, the detail, or the whole bullet.
 
 ### "Is there anything blocking your progress?" — Answer with just a dash
 Send: `-`
