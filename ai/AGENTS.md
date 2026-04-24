@@ -78,6 +78,13 @@ In shared repositories, such as ones in the user's company, prefix the branch na
 
 Use `gt create <branch-name> --message '<commit message>'` to create a new branch when Graphite is available, otherwise use `git switch --create <branch-name>`.
 
+# Amending vs. New Commits
+
+For most repos, for small follow-up changes to an in-flight PR (review feedback, typo fixes, lint fixes, revert of a single hunk), prefer amending the existing commit via `gt modify` (or `git commit --amend` + `git push --force-with-lease`) rather than stacking a new commit on top.
+This keeps World PRs to a single clean commit.
+
+Some repos, such as optify do squash commits for pull requests, so amending is not necessary there.
+
 # Git Commit Messages
 
 IMPORTANT: You MUST invoke the /create-commit-message skill BEFORE writing any commit message such as when using `git commit`.
@@ -87,6 +94,8 @@ Do NOT write commit messages from memory or general knowledge — always invoke 
 
 IMPORTANT: You MUST invoke the /create-pull-request skill BEFORE creating any pull request such as when using `gh pr create` or `gt submit`.
 Do NOT write PR titles or descriptions from memory or general knowledge — always invoke the skill first to get the exact formatting rules.
+
+After any follow-up commit, amend, squash, or push to an already-open PR, re-read the current PR body and the current diff on GitHub and update the title/description if they no longer match. See the "Keeping the PR Description in Sync After Follow-Up Commits" section of the /create-pull-request skill for the exact steps.
 
 # Communicating on Behalf of the User
 

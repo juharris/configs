@@ -49,6 +49,17 @@ For Shopify repos, the company's internal Vault tools can be used to find a pers
 If Graphite is available, then use `gt submit --draft --view` to create the pull request and edit the description once it is created as a draft;
 otherwise use `gh pr create --draft --fill` and edit the description to include the details of what was done and why it was done.
 
+## Keeping the PR Description in Sync After Follow-Up Commits
+
+After any additional commit or push to an already-open PR (review feedback, squashes, reverts, amends, etc.), always:
+
+1. Re-fetch the current PR body with `gh pr view <number> --repo <owner>/<repo> --json body -q .body` so you see what is actually on GitHub (not what you originally drafted as there are often changes in GitHub).
+2. Re-read the PR's current diff (e.g. `git diff origin/main...HEAD --stat` or `gh pr diff <number> --repo <owner>/<repo>`) so the description describes the code that now exists, not what existed at initial submission.
+3. If the Summary or Test plan no longer matches the diff (a feature was reverted, scope shrunk, new files were added, etc.), update the PR body with `gh pr edit <number> --repo <owner>/<repo> --body "..."`.
+4. If the PR title no longer describes the diff, update it with `--title` in the same `gh pr edit` call.
+
+This applies equally whether the commit was added via `gt modify`, `gt squash`, `git commit --amend`, or a new commit — if the diff on GitHub has changed, the description probably needs to change too.
+
 ## Reporting Back to the User
 
 This is about your chat reply to the user, not the PR body itself.
