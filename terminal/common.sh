@@ -142,7 +142,11 @@ alias gs='git switch'
 # Checkout and pull the default branch.
 # Would need to do `git remote set-head origin --auto` if a repo changes the default.
 # From https://stackoverflow.com/questions/28666357/git-how-to-get-default-branch#comment97435365_44750379
-alias gcm='git fetch origin "`basename $(git symbolic-ref refs/remotes/origin/HEAD)`" && git checkout "`basename $(git symbolic-ref refs/remotes/origin/HEAD)`" && git merge origin/"`git rev-parse --abbrev-ref HEAD`"'
+gcm() {
+	default_branch=`basename $(git symbolic-ref refs/remotes/origin/HEAD)`
+	git fetch origin "${default_branch}" && git checkout "${default_branch}" && git merge origin/${default_branch}
+}
+
 # Pull the default branch.
 alias gpm='git pull --no-edit origin "`basename $(git symbolic-ref refs/remotes/origin/HEAD)`"'
 # To put the branch name at the begining of a commit message:
