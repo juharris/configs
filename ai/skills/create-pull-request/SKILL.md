@@ -49,6 +49,14 @@ For Shopify repos, the company's internal Vault tools can be used to find a pers
 If Graphite is available, then use `gt submit --draft --view` to create the pull request and edit the description once it is created as a draft;
 otherwise use `gh pr create --draft --fill` and edit the description to include the details of what was done and why it was done.
 
+### Capturing `gt submit` output
+
+`gt submit` streams progress over several seconds (validation → preparing → pushing → final URL).
+Do NOT pipe it through `tail`, `head`, or similar — those can return before the URL line is emitted, making it look like the submit hung when it actually succeeded.
+
+- Run `gt submit --no-interactive --draft` directly (no pipe) and let it complete so the full output, including the PR URL, is captured.
+- If the URL appears to be missing, do NOT re-run `gt submit` — it may have already created the PR. Check `gt log` for the PR number and URL instead.
+
 ## Keeping the PR Description in Sync After Follow-Up Commits
 
 After any additional commit or push to an already-open PR (review feedback, squashes, reverts, amends, etc.), always:
