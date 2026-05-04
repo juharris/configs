@@ -34,6 +34,7 @@ Do not change the working directory unless absolutely necessary.
 The `gh` CLI and `git` commands work from any subdirectory within a repository.
 Prefer to stay in the current working directory even within a monorepo.
 Do not `cd <repo root> && ...` unless absolutely necessary.
+Avoid `git -C <repo root> ...` unless absolutely necessary. It's the same anti-pattern as `cd`. Stay in the CWD.
 
 When using Grep, Glob, Read, or any search tool to access files within the current working directory, use relative paths or omit the path parameter entirely.
 Do NOT use absolute paths to files in the current repo — absolute paths trigger unnecessary permission prompts that waste time.

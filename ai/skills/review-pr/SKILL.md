@@ -25,18 +25,20 @@ Read those files first, then:
 
 **Always write the full JSON payload to a temp file and use `--input`** to submit reviews. Using `--field 'comments=[...]'` causes `gh api` to treat the JSON array as a string, resulting in a 422 error.
 
+**Always post reviews as PENDING (draft), never submit them.** Justin reviews and submits the comments himself.
+To create a pending review, **omit the `event` field entirely** from the payload — this leaves the review in `PENDING` state.
+Do NOT pass `"event": "COMMENT"`, `"event": "APPROVE"`, or `"event": "REQUEST_CHANGES"`, as any of these submits the review immediately.
+
 When targeting specific lines, **always use `line` + `side` instead of `position`**. `position` counts every line from the `@@` hunk header and is error-prone; `line` uses the actual file line number which is reliable.
 
 - `side: "RIGHT"` — targets a line in the new (right-hand) version of the file
 - `side: "LEFT"` — targets a line in the old (left-hand) version of the file
 - `line` — the actual line number in the file (read the file or use `gh pr diff` to confirm)
 
-Example — write the payload to a file, then submit:
+Example — write the payload to a file, then submit (note: no `event` field, so the review stays pending):
 ```bash
 cat > /tmp/pr-review.json << 'ENDJSON'
 {
-  "event": "COMMENT",
-  "body": "",
   "comments": [
     {
       "path": "path/to/file.ts",
@@ -49,6 +51,8 @@ cat > /tmp/pr-review.json << 'ENDJSON'
 ENDJSON
 gh api repos/OWNER/REPO/pulls/NUMBER/reviews --input /tmp/pr-review.json
 ```
+
+Verify the response includes `"state":"PENDING"`. If it shows `"state":"COMMENTED"` or similar, the review was accidentally submitted — check that no `event` field was present in the payload.
 
 Use a heredoc with `'ENDJSON'` (quoted) to prevent shell interpolation of `$`, `#`, and backticks inside comment bodies.
 

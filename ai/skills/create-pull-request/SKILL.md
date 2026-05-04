@@ -49,6 +49,13 @@ For Shopify repos, the company's internal Vault tools can be used to find a pers
 If Graphite is available, then use `gt submit --draft --view` to create the pull request and edit the description once it is created as a draft;
 otherwise use `gh pr create --draft --fill` and edit the description to include the details of what was done and why it was done.
 
+### Reading `--help` output
+
+Never pipe `--help` (or any other help/usage) output through `head`, `tail`, `sed`, or similar truncation tools.
+Help text is bounded and short by design; truncating it wastes time picking an arbitrary line count, hides flags and examples that usually live near the bottom, and forces re-runs when the first guess was too small.
+Run `<command> --help` (or `<command> <subcommand> --help`) directly and read the full output.
+This applies to every CLI you invoke for help — `gt`, `gh`, `git`, `dev`, `tec`, and anything else.
+
 ### Capturing `gt submit` output
 
 `gt submit` streams progress over several seconds (validation → preparing → pushing → final URL).
