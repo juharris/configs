@@ -37,28 +37,35 @@ Summaries are shared with colleagues and leadership, so use discretion when draw
    gh search prs --author @me --created ">=$DATE" --state open --json repository,title,body,url,createdAt,number --limit 100
    ```
 
-4. For any PR whose body is empty or truncated in the search results, fetch the full details:
+4. Search for issues created in the last week across all repos. Issues capture intent and planning work that doesn't show up as a PR:
    ```
-   gh pr view <number> --repo <owner/repo> --json title,body,url,state,mergedAt,createdAt
+   gh search issues --author @me --created ">=$DATE" --json repository,title,body,url,state,createdAt,number --limit 100
    ```
 
-5. Search for the current user's notable Slack activity using the Slack MCP tools:
+5. For any PR or issue whose body is empty or truncated in the search results, fetch the full details:
+   ```
+   gh pr view <number> --repo <owner/repo> --json title,body,url,state,mergedAt,createdAt
+   gh issue view <number> --repo <owner/repo> --json title,body,url,state,createdAt
+   ```
+
+6. Search for the current user's notable Slack activity using the Slack MCP tools:
    - Use `mcp__playground-slack-mcp__get_user_profile` to get the current user's Slack user ID.
    - Use `mcp__playground-slack-mcp__get_messages` to find the user's messages from the period with the most reactions or lengthy threads, focusing on important discussions, decisions, or announcements.
    - Use `mcp__playground-slack-mcp__get_reactions` to identify which messages received significant engagement.
 
-6. Produce a summary organized by repository with the following structure:
+7. Produce a summary organized by repository with the following structure:
 
    **Period:** `<start_date>` to `<today>`
 
    Start with a brief **highlights** section (3-5 bullets) calling out the most significant accomplishments across all repos and Slack activity.
 
-   For each repository that had PR activity:
+   For each repository that had PR or issue activity:
 
    **`<owner/repo>`**
 
    - **Merged PRs** — list each with title, PR number (linked to URL), and a one-sentence description of what was accomplished based on the PR title and body.
    - **Open PRs** — list each with title, PR number (linked to URL), and current status.
+   - **Issues filed** — list each issue the user opened in the period with title, issue number (linked to URL), and a one-sentence summary of the problem or proposal.
    - **Notable Reviews** — list any PRs where the user was a reviewer, especially those they approved or requested changes on, with links and brief descriptions.
 
    After the repository sections, include a **Notable Slack Activity** section with:

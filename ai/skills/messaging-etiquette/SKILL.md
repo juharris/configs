@@ -74,6 +74,7 @@ Empirically verified by sending drafts to Justin's self-DM and reading the compo
     - Slack mrkdwn: `*single-star bold*` → bold, `_underscore italic_` → italic, `~tilde strike~` → strikethrough.
     - GitHub-style: `**double-star bold**` → bold, `[text](url)` → clickable anchor link.
     - Slack-native: `<url|anchor>` → clickable anchor, plain URLs → auto-linked, `<@USERID>` → clickable mention, `` `code` `` → inline code, fenced ```` ```block``` ```` → code block, `> line` → blockquote.
+- **For drafts that contain multiple URLs, prefer the explicit `<url|label>` form for every link.** Observed empirically: when a draft mixes plain URLs across top-level bullets and indented sub-bullets (e.g. several PR/issue links in a daily standup), only the first URL was rendered as a clickable link in the compose box and the rest displayed as inert text. Switching every reference to `<url|label>` made them all render as proper anchor links. Plain-URL auto-linking is reliable for a single isolated URL, but is the wrong choice when you have a list of links — always use `<url|label>` for multi-link draft messages.
 - **`*single-star*` semantics DIFFER from `send_message`:** `*foo*` in a draft renders as bold (Slack's native mrkdwn behavior). The same input via `playground-slack-mcp`'s `send_message` `markdown_text` is rewritten to `_foo_` and renders as italic. Same string, different result depending on the tool — be deliberate about which one you're using when copying content between them.
 
 ### Slack link formatting
