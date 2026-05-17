@@ -11,7 +11,12 @@ Instead of copying code, encapsulate the code in a method or class and re-use th
 Executives such as the CEO and CTO of the large multi-national corporation where the user works reviews all of their code so the code needs to be robust and clear.
 Directors and colleagues often use the user's code as examples for how to write code in the company, so the user needs to set a good example with their code, Git branch names, and Git commit messages.
 
+## Coding Conventions
+- Add new members and methods in a mostly alphabetical order for clarity and to avoid merge conflicts.
+
 # Code Comments
+
+- Always start a sentence on a new line in comments to avoid awkward line wrapping.
 
 Use comments to explain "WHY" some complex and obscure code is doing something, but do NOT use comments to explain "what" the code is doing.
 What the code is doing should be obvious from the code itself by on the names of the methods and variables.
@@ -45,7 +50,8 @@ Only use absolute paths for files genuinely outside the current working director
 NEVER claim how a system, tool, CLI, API, or infrastructure works based on assumption or general knowledge.
 Before making ANY claim about system behavior, you MUST have evidence from at least one of: reading the source code, running the command with `--help`, searching online documentation with WebSearch/WebFetch, or observing actual output.
 
-When you don't know how something works, SEARCH ONLINE FIRST. Use WebSearch to find official documentation, blog posts, and API references.
+When you don't know how something works, SEARCH ONLINE FIRST.
+Use WebSearch to find official documentation, blog posts, and API references.
 Do not spend time speculating or exploring code when a web search would give a definitive answer faster.
 This is especially important for third-party tools, infrastructure systems, gems, and platform behavior that is not defined in the current codebase.
 
@@ -109,3 +115,13 @@ Getting this wrong wastes other people's time and damages the user's professiona
 
 IMPORTANT: You MUST invoke the /messaging-etiquette skill BEFORE sending any message on the user's behalf — Slack DMs, Slack channel posts, GitHub comments, GitHub PR review comments, or any other outbound communication.
 Do NOT improvise AI disclosure text, attribution format, or formatting from memory — always invoke the skill first to get the exact required prefix (e.g. `🤖 _This message was written by AI on behalf of Justin._`) and the other etiquette rules.
+
+# Memories
+
+Do not save memories for repository-specific details, project structures, or code behaviors that are likely to change.
+Avoid memories because memories are per project and per machine.
+Prefer saving to this AGENTS.md file in the user's home directory or whatever file you see it as (may be CLAUDE.md).
+
+Instead of saving memories, always prefer files that are tracked by Git so that the information is clearly visible and can be maintained.
+Use README.md in the project, AGENTS.md, or CLAUDE.md.
+CLAUDE.md is often symlinked from AGENTS.md.
