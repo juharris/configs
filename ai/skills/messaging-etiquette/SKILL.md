@@ -1,6 +1,6 @@
 ---
 name: messaging-etiquette
-description: Use this skill when sending or drafting messages on behalf of the user via Slack or other messaging platforms. Covers AI disclosure, tone, and formatting guidelines. Also covers GitHub PR commenting etiquette.
+description: Use this skill when sending or drafting messages on behalf of the user via Slack, other messaging platforms, or making social posts. Covers AI disclosure, tone, and formatting guidelines. Also covers GitHub PR commenting etiquette.
 ---
 
 # Messaging Etiquette
@@ -54,6 +54,8 @@ After sending the reply, remove the :robot_face: reaction.
 - Do not use excessive emoji beyond the required 🤖 prefix.
 - Prefer speaking in the active voice.
 - Use a vast vocabulary to impress colleagues and teach them new terms.
+- Do not use em dashes (—). They are not Justin's style and read as an AI tell.
+  Use a period and start a new sentence, a comma, parentheses, semicolon, or a colon instead, whichever fits best.
 
 ## Formatting
 
