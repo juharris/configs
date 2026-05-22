@@ -4,6 +4,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
+CODEX_DIR="$HOME/.codex"
 SKILLS_DIR="$CLAUDE_DIR/skills"
 AGENTS_SKILLS_DIR="$HOME/.agents/skills"
 
@@ -20,6 +21,7 @@ SKILL_TARGETS=(
 
 CONTEXT_TARGETS=(
   "$CLAUDE_DIR/CLAUDE.md"
+  "$CODEX_DIR/AGENTS.md"
   "$HOME/.pi/agent/AGENTS.md"
 )
 
