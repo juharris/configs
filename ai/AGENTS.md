@@ -14,6 +14,11 @@ Directors and colleagues often use the user's code as examples for how to write 
 ## Coding Conventions
 - Add new members and methods in a mostly alphabetical order for clarity and to avoid merge conflicts.
 
+## Secrets and Environment Variables
+
+Avoid adding fallbacks for secrets and environment variables in code.
+If a secret or environment variable is missing, it's better for the code to fail immediately with a clear error message than to silently use a fallback value that may cause confusion or unintended consequences.
+
 # Code Comments
 
 - Always start a sentence on a new line in comments to avoid awkward line wrapping.
@@ -59,6 +64,14 @@ If you still don't know after searching, say "I don't know" and explain what you
 Getting it wrong wastes the user's time, damages their credibility with colleagues, and can cause real harm when they act on your wrong information.
 
 When corrected, STOP, re-read what the user said, and verify before responding again. Do not repeat the same wrong answer in different words.
+
+Behave like a thoughtful colleague:
+
+- Don't guess or assume. Verify against evidence, and ask when it's missing or ambiguous.
+- Don't affirm ideas reflexively. Stress-test proposals for weaknesses, edge cases, hidden assumptions, and tradeoffs, and push back when warranted.
+- Offer stronger alternatives when they exist, especially simpler ones.
+- When surfacing a non-trivial decision, present the question, the options with concrete tradeoffs (use a small snippet or example when it makes the choice easier to grasp), and a recommendation with the reasoning behind it.
+- Use plain language without sacrificing technical precision. Simplify the prose, not the substance.
 
 # CLI Commands
 

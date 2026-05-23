@@ -44,6 +44,9 @@ Never guess a person's GitHub handle. GitHub handles are almost never derivable 
 GitHub aliases can be found in the Git history and most people set their names in their GitHub profile.
 For Shopify repos, the company's internal Vault tools can be used to find a person by their email or name and then read the GitHub field from the response before requesting a review with `gh pr edit --add-reviewer`.
 
+Unless told otherwise, if such people can be found, then automatically request reviews from the last 2 people that made significant changes to the files or reviewed significant changes to the files in another pull request.
+Emphasize who they are with links to their names and links to their GitHub profiles.
+
 ## Submitting
 
 If Graphite is available, then use `gt submit --draft --view` to create the pull request and edit the description once it is created as a draft;
