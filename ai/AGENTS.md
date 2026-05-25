@@ -96,11 +96,15 @@ Run tests and style fixes for new and changed code.
 # Git Branch Names
 In shared repositories, such as ones in the user's company, prefix the branch name with `jus/` to indicate that the branch is being worked on by the user.
 
-Use `gt create <branch-name> --message '<commit message>'` to create a new branch when Graphite is available, otherwise use `git switch --create <branch-name>`.
+Use `git switch --create <branch-name>` to create a new branch by default.
+Use Graphite (`gt`) only when the user explicitly asks for Graphite, when working on a stacked PR, or when repository/task instructions specifically require Graphite.
+Never use Graphite when the user asks not to.
+When using Graphite, load the /graphite skill and follow its workflow.
 
 # Amending vs. New Commits
 
-For most repos, for small follow-up changes to an in-flight PR (review feedback, typo fixes, lint fixes, revert of a single hunk), prefer amending the existing commit via `gt modify` (or `git commit --amend` + `git push --force-with-lease`) rather than stacking a new commit on top.
+For most repos, for small follow-up changes to an in-flight PR (review feedback, typo fixes, lint fixes, revert of a single hunk), prefer amending the existing commit via `git commit --amend` + `git push --force-with-lease` rather than stacking a new commit on top.
+Use `gt modify` instead when working in a Graphite stack.
 This keeps World PRs to a single clean commit.
 
 Some repos, such as optify do squash commits for pull requests, so amending is not necessary there.

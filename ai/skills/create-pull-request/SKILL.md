@@ -10,7 +10,10 @@ When asked to make a pull request, first check for the current branch and staged
 Do not commit directly to main (unless explicitly asked); instead, make a new branch first:
 In shared repositories, such as ones in the user's company, prefix the branch name with `jus/` to indicate that the branch is being worked on by the user.
 
-Use `gt create <branch-name> --message '<commit message>'` to create a new branch when Graphite is available, otherwise use `git switch --create <branch-name>`.
+Use `git switch --create <branch-name>` to create a new branch by default.
+Use `gt create <branch-name> --message '<commit message>'` only when the user explicitly asks for Graphite, when working on a stacked PR, or when the repository/task instructions specifically require Graphite.
+Never use Graphite when the user asks not to.
+When using Graphite, load the /graphite skill and follow its workflow.
 
 Use the /create-commit-message skill to get instructions on how to create commit messages and what to include in the commit message.
 
@@ -57,8 +60,10 @@ Emphasize who they are with links to their names and links to their GitHub profi
 
 ## Submitting
 
-If Graphite is available, then use `gt submit --draft --view` to create the pull request and edit the description once it is created as a draft;
-otherwise use `gh pr create --draft --fill` and edit the description to include the details of what was done and why it was done.
+Use `git push -u origin <branch-name>` and `gh pr create --draft` by default.
+Use `gt submit --draft --view` only when the user explicitly asks for Graphite, when working on a stacked PR, or when the repository/task instructions specifically require Graphite.
+Never use Graphite when the user asks not to.
+When using `gh pr create`, provide the PR title and body from this skill instead of relying only on `--fill`.
 
 ### Reading `--help` output
 
