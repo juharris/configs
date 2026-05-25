@@ -57,5 +57,14 @@ Good:
 
 ## Attribution
 
-Read the user's `~/.claude/settings.json` file and look for the `attribution.commit` field.
-If it exists, append it to the end of the PR body/description.
+Attribution is agent-specific.
+
+- When running as Claude Code, read the user's `~/.claude/settings.json` file and look for the `attribution.commit` field.
+  If it exists, append it to the end of the commit message body.
+- When running as Codex, do not read `~/.claude/settings.json` for attribution.
+  If Codex's generated commit flow is adding commit attribution through `commit_attribution` and `[features].codex_git_commit` in `~/.codex/config.toml`, let Codex add the `Co-authored-by:` trailer.
+  Otherwise, append this trailer to the end of the commit message body:
+
+```
+Co-authored-by: Codex <noreply@openai.com>
+```
