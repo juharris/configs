@@ -55,8 +55,30 @@ Never guess a person's GitHub handle. GitHub handles are almost never derivable 
 GitHub aliases can be found in the Git history and most people set their names in their GitHub profile.
 For Shopify repos, the company's internal Vault tools can be used to find a person by their email or name and then read the GitHub field from the response before requesting a review with `gh pr edit --add-reviewer`.
 
-Unless told otherwise, if such people can be found, then automatically request reviews from the last 2 people that made significant changes to the files or reviewed significant changes to the files in another pull request.
-Emphasize who they are with links to their names and links to their GitHub profiles.
+Unless told otherwise, request reviews from up to 2 people using this evidence order:
+
+1. People who last changed the exact lines in the PR diff.
+2. People who last changed nearby lines in the same file or same config section when exact-line authors are unavailable or are the PR author.
+3. People who reviewed the PRs that introduced those exact or nearby lines.
+
+Use `git blame <base-branch> -L <start>,<end> -- <path>` on the base version of each changed file to identify exact-line and nearby-line authors.
+Exclude the current PR author, bots, and duplicate handles from reviewer candidates.
+When a blamed commit author has only a name or email, resolve the GitHub handle from evidence such as the blamed commit's GitHub author, the associated PR author, or internal Vault data.
+Do not request a reviewer from a guessed handle.
+Do not stop at file-level history when the PR only changes a few lines.
+Use the changed line ranges from the diff and blame those lines first.
+
+For review-history evidence, map the blamed commit to its PR, then read that PR's reviews.
+For GitHub, `gh api repos/<owner>/<repo>/commits/<sha>/pulls` can map a commit to associated PRs, and `gh pr view <number> --json author,reviews,reviewRequests,commits` can show the PR author and reviewers.
+Prefer human approvals or substantive human review comments over bots, codeowner teams, or self-reviews.
+If the associated-PR API is unavailable, search PRs by the blamed commit title, branch, or relevant file/config names and say which searches failed before falling back.
+
+After creating the PR, read `gh pr view <number> --json reviewRequests,reviews,author`.
+GitHub may automatically request code owners or teams after PR creation.
+Keep those requests, but still add the evidence-based reviewers from the order above unless they are already requested.
+
+Report the reviewer rationale briefly when handing the PR back.
+Name the evidence category, such as "authored changed lines" or "approved the PR that introduced these lines", so the reviewer selection is auditable.
 
 ## Submitting
 
@@ -64,6 +86,13 @@ Use `git push -u origin <branch-name>` and `gh pr create --draft` by default.
 Use `gt submit --draft --view` only when the user explicitly asks for Graphite, when working on a stacked PR, or when the repository/task instructions specifically require Graphite.
 Never use Graphite when the user asks not to.
 When using `gh pr create`, provide the PR title and body from this skill instead of relying only on `--fill`.
+
+### Opening the Finished Pull Request
+
+After the PR has been created, the title and description are set or updated, and reviewers have been requested, open the PR in the user's browser before the final chat response.
+For GitHub PRs, use `gh pr view <number-or-url> --repo <owner>/<repo> --web`.
+If browser-opening requires approval in the current environment, request approval for that final handoff step.
+Do not open the PR early, because the user should land on the finished PR with the final description and reviewer requests already in place.
 
 ### Reading `--help` output
 
