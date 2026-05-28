@@ -36,6 +36,60 @@ context_value = hash["context_key"]
 process(context_value) if context_value.present?
 ```
 
+### Abstractions, Encapsulation, and Duplication
+
+Watch for repeated type checks, union checks, or `OR` conditions that spread knowledge of related classes across the codebase.
+If several call sites need to treat multiple concrete classes the same way, suggest a common interface, base class,
+mixin, or protocol instead of sprinkling conditionals through unrelated files.
+
+Watch for repeated multi-line transformations or conversions.
+If the same few lines appear in multiple places, suggest encapsulating them behind a clearly named method or small
+object, especially when the transformation is likely to grow to support more input types later.
+
+### Documentation and Comments
+
+Ask for docstrings above new classes, value objects, and methods when their purpose will not be obvious from call sites.
+Do not request docstrings for when the name and usage of the class is clear enough to explain its purpose.
+Do not request docstrings for private classes or methods that are only a few lines long and are easy to understand in context.
+This is especially useful for small data classes because editors can show the explanation when someone hovers over the class in another file.
+
+For Markdown and long comments, prefer sentence-per-line formatting when it keeps future diffs small.
+Markdown processors usually merge adjacent lines, so splitting long sentences or paragraphs can improve maintainability without changing rendered output.
+
+When implementation details are copied from a PR description and the code would otherwise look redundant or surprising,
+suggest moving the essential reason into a nearby comment or docstring.
+Do not ask for comments that merely restate obvious code.
+
+### Reviewability and Scope
+
+Flag PRs whose title implies a narrow change while the diff changes broader or global behavior.
+Global behavior changes should be configuration-driven where possible, isolated so domain owners can review them,
+and easy to revert.
+
+If a PR changes some specific business logic for a specific feature, but also changes the core code that the team relies on such auth logic or Optify feature or configuration processing, then
+request that the PR be split into two: one for the specific feature change and one for the core code change.
+It's important for the team to notice core changes and not to hide them in a PR that looks like it's just about a specific feature, client, or surface.
+
+Question large refactors that change many files when a smaller backwards-compatible wrapper would preserve the existing API.
+Prefer one clear public method for common workflows unless the split materially improves correctness or readability.
+
+Prefer small, reviewable diffs.
+If a change only needs to delete a duplicate line or keep existing formatting, suggest the smaller diff instead of accepting churn that makes the behavior change harder to see.
+
+### Testing
+
+Question tests that mostly assert framework plumbing, configuration merging, alias resolution, or foundational behavior already covered elsewhere.
+Prefer behavior-level tests at the boundary that matters for the feature.
+
+When a test relies on math or setup intended to cross a threshold, look for an explicit precondition assertion.
+For example, assert that generated fixture data actually exceeds the limit before asserting that limiting behavior occurred.
+
+### Structured Data
+
+When code invents a custom text format that must be parsed later such as CSV or tabs separated values, suggest a standard structured format such as
+JSON Lines if ordering and appendability matter.
+Custom formats are often hard to parse robustly and become expensive to maintain.
+
 ## Posting Inline Comments via GitHub API
 
 **Always write the full JSON payload to a temp file and use `--input`** to submit reviews. Using `--field 'comments=[...]'` causes `gh api` to treat the JSON array as a string, resulting in a 422 error.
