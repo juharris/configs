@@ -21,6 +21,21 @@ Read those files first, then:
   Never comment directly on the pull request and only comment in files.
   Prefer to reply to existing relevant comment threads over starting new threads in a file.
 
+## Review Heuristics
+
+Watch for repeated hash lookups where the same value is read once for a `present?` guard and then read again for the method call.
+This is wasteful and noisier than assigning a local variable.
+For example:
+```Ruby
+process(hash["context_key"]) if hash["context_key"].present?
+```
+
+Prefer:
+```Ruby
+context_value = hash["context_key"]
+process(context_value) if context_value.present?
+```
+
 ## Posting Inline Comments via GitHub API
 
 **Always write the full JSON payload to a temp file and use `--input`** to submit reviews. Using `--field 'comments=[...]'` causes `gh api` to treat the JSON array as a string, resulting in a 422 error.
