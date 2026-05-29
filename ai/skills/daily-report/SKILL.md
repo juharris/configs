@@ -26,15 +26,17 @@ gh search issues --author=@me --created=">=$(date +%Y-%m-%d)" --json title,url,s
 
 Analyze the conversation to find the FIRST Geekbot question that has NO user reply after it:
 - Look for non-Geekbot messages between Geekbot's questions to identify already-answered questions.
+- If Geekbot asks another question after an interactive mood question, treat the mood question as already answered.
+  Slack history does not always expose the selected interactive button value, but Geekbot advancing to the next question proves the user completed it.
 - Only respond to the first unanswered question.
 - Do NOT re-answer questions the user already responded to.
 
 ## Step 3: Answer the unanswered question
 
-### "How did you feel today?" — SKIP, do not answer
+### "How did you feel today?" or "How are you feeling today?" — SKIP, do not answer
 This question uses interactive buttons in Slack. Tell the user to pick their answer in Slack, then re-run the skill. Do NOT send a text message for this question.
 
-### "What did you work on today?" — Answer with work summary
+### "What did you work on today?" or "What will you work on today?" — Answer with work summary
 Use the work data gathered in Step 1 to compose a summary.
 - Do not use Markdown formatting — use plain text with typical Slack formatting (bullets with •).
 - Put the most impactful highlights first at the top.
