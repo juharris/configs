@@ -41,6 +41,8 @@ Use the work data gathered in Step 1 to compose a summary.
 - Do not use Markdown formatting — use plain text with typical Slack formatting (bullets with •).
 - Put the most impactful highlights first at the top.
 - Include: merged PRs, open PRs, issues filed today (across all repos), notable PR reviews, important Slack discussions, notable meetings.
+- Only mention issues filed today when at least one issue was filed.
+  Do not add a "no issues filed today" bullet when there were none.
 - When linking to PRs or issues in the draft, use Slack's native `<url|label>` mrkdwn format (see the /messaging-etiquette skill). Plain URLs do not reliably auto-link inside indented sub-bullets in Slack drafts.
 - Emphasize WHY the work matters, not just what was done.
 - Follow the discretion guidance from the /weekly-summary skill when drawing from private sources. Minimize names — only name someone when attribution is load-bearing (they own the work, or credit is due). Do not name people for routine reviews, DMs, or meeting attendance, and never attach a name to anything that could read as criticism or surface something private about them (calendars, interviews, hiring, personal behavior) — drop the name, the detail, or the whole bullet.
