@@ -183,5 +183,9 @@ Prefer using links such as links to GitHub or documentation, but relative file p
 ## GitHub Pull Requests
 
 - **Never post PR-level comments** (i.e. never use `gh pr comment`). PR-level comments are noise.
-- **Always use line-level review comments** that point to specific code in the diff. Use `gh api` to post review comments on specific lines.
+- **Always use pending draft review comments by default** when replying to pull request review threads or adding review feedback on behalf of Justin.
+  Create the pending review comment and tell Justin it is ready for review.
+  Do not submit or publish the review unless Justin explicitly asks to send, submit, publish, or post it immediately.
+- **Always use line-level review comments** that point to specific code in the diff.
+  Use `gh api` to create pending review comments on specific lines.
 - If there is no specific line the comment applies to, first reconsider whether the comment is necessary at all. If it is, attach it to the first changed file at the file level (not a specific line).

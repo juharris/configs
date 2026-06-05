@@ -187,7 +187,7 @@ git_delete_merged_branches() {
 }
 
 git_prune_local_branches() {
-	# Maybe do `git fetch --prune origin`? but that pull other branches that we don't really need and they could have lots of changes.
+	# Maybe do `git fetch --prune origin`? but that will pull other branches that we don't really need and they could have lots of changes.
 	local branches_to_delete=$(git branch | grep -E -v "^(\*|`git symbolic-ref --short HEAD`| *master$| *main$)")
 	if [ "${branches_to_delete}" != "" ]; then
 		git branch -D ${branches_to_delete}
