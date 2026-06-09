@@ -147,6 +147,18 @@ gcm() {
 	git fetch origin "${default_branch}" && git checkout "${default_branch}" && git merge origin/${default_branch}
 }
 
+# Fetch and switch branch
+gsr() {
+	local branch="$1"
+
+	if git show-ref --verify --quiet "refs/heads/$branch"; then
+		git switch "$branch"
+	return
+	fi
+
+	git fetch origin "refs/heads/$branch" && git switch --no-track --create "$branch" FETCH_HEAD
+}
+
 # Pull the default branch.
 alias gpm='git pull --no-edit origin "`basename $(git symbolic-ref refs/remotes/origin/HEAD)`"'
 # To put the branch name at the begining of a commit message:

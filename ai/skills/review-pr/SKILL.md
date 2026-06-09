@@ -20,6 +20,7 @@ Read those files first, then:
   When a review comment was directly influenced by a specific hint or direction from Justin in the chat, note this in the comment (e.g., "🤖 AI Review (influenced directly by Justin): ...") to distinguish it from independently generated feedback.
   Never comment directly on the pull request and only comment in files.
   Prefer to reply to existing relevant comment threads over starting new threads in a file.
+6. In the final response, include a Markdown link to the reviewed PR so Justin can open it quickly.
 
 ## Review Heuristics
 
