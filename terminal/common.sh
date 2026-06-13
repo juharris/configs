@@ -253,7 +253,6 @@ EOF
 }
 
 if [[ "$is_win" == "true" ]]; then
-	# Show branch in PS1
 	paths=(/c/Program\ Files/Git/mingw64/share/git/completion/git-prompt.sh /c/Program\ Files/Git/mingw64/share/git/completion/git-completion.bash /c/Program\ Files\ \(x86\)/Git/etc/git-prompt.sh /c/Program\ Files\ \(x86\)/Git/etc/git-completion.bash /e/Program\ Files\ \(x86\)/Git/etc/git-prompt.sh /e/Program\ Files\ \(x86\)/Git/etc/git-completion.bash)
 	for path in "${paths[@]}"
 	do
@@ -279,26 +278,26 @@ if [[ "$is_win" == "true" ]]; then
 		fi
 	done
 
-	# OneDrive
-	OneDrive_path_candidates=("$OneDrive" /c/Users/juharri.NORTHAMERICA/OneDrive\ -\ Microsoft /c/Users/juharri/OneDrive\ -\ Microsoft)
-	for OneDrive_path_candidate in "${OneDrive_path_candidates[@]}"
-	do
-		if [ "${OneDrive_path_candidate}" == "" ]; then
-			continue
-		fi
-		if [ -d "/mnt$OneDrive_path_candidate" ]; then
-			OneDrive_path="/mnt${OneDrive_path_candidate}"
-			break
-		fi
-		if [ -d "${OneDrive_path_candidate}" ]; then
-			OneDrive_path="${OneDrive_path_candidate}"
-			if type 'cygpath' > /dev/null 2>&1; then
-				OneDrive_path=`cygpath $OneDrive_path`
-			fi
-			break
-		fi
-	done
-	unset OneDrive_path_candidate OneDrive_path_candidates
+	# OneDrive (not used much)
+	# OneDrive_path_candidates=("$OneDrive")
+	# for OneDrive_path_candidate in "${OneDrive_path_candidates[@]}"
+	# do
+	# 	if [ "${OneDrive_path_candidate}" == "" ]; then
+	# 		continue
+	# 	fi
+	# 	if [ -d "/mnt$OneDrive_path_candidate" ]; then
+	# 		OneDrive_path="/mnt${OneDrive_path_candidate}"
+	# 		break
+	# 	fi
+	# 	if [ -d "${OneDrive_path_candidate}" ]; then
+	# 		OneDrive_path="${OneDrive_path_candidate}"
+	# 		if type 'cygpath' > /dev/null 2>&1; then
+	# 			OneDrive_path=`cygpath $OneDrive_path`
+	# 		fi
+	# 		break
+	# 	fi
+	# done
+	# unset OneDrive_path_candidate OneDrive_path_candidates
 fi
 
 # Set up SSH Agent Forwarding. Use `ssh -A` when connecting.
@@ -323,7 +322,7 @@ done
 unset editors_candidate editors_candidates
 
 # Downloads
-downloads_candidates=($USERPROFILE/Downloads /c/Users/juharri.NORTHAMERICA/Downloads /c/Users/juharri/Downloads ~/downloads /c/Users/justi/Downloads /c/Users/Justin/Downloads /e/Downloads)
+downloads_candidates=($USERPROFILE/Downloads ~/downloads /c/Users/justi/Downloads /c/Users/Justin/Downloads /e/Downloads)
 for downloads_candidate in "${downloads_candidates[@]}"
 do
 	if [[ -d /mnt$downloads_candidate ]]; then
@@ -342,7 +341,7 @@ unset downloads_candidate downloads_candidates
 
 # Workspace
 # Prefer '~/workspace' for WSL2.
-workspace_candidates=(~/src/github.com/Shopify ~/workspace $USERPROFILE/workspace /c/Users/justi/workspace /c/Users/juharri/workspace /e/Documents/workspace /c/Users/Justin/workspace /c/Users/Justin/Documents/workspace /workspace)
+workspace_candidates=(~/src/github.com/Shopify ~/workspace $USERPROFILE/workspace /c/Users/justi/workspace /e/Documents/workspace /c/Users/Justin/workspace /c/Users/Justin/Documents/workspace /workspace)
 for workspace_candidate in "${workspace_candidates[@]}"
 do
 	if [ -d /mnt$workspace_candidate ]; then
@@ -582,13 +581,60 @@ fi
 # [repeat for subkeys: key 1, key 2 etc...]
 # save
 
+function get_git_branch_modifiers {
+	local -n _branch="$1"
+	local -n change_modifiers="$2"
+	local git_status has_staged_changes has_unstaged_changes
+	_branch="$(command git symbolic-ref --quiet --short HEAD 2> /dev/null)"
+	if [ -z "${_branch}" ]; then
+		_branch="$(command git rev-parse --short HEAD 2> /dev/null)"
+	fi
+
+	if [ -n "${_branch}" ]; then
+		command git diff-index --quiet --cached HEAD -- 2> /dev/null
+		git_status=$?
+		case "${git_status}" in
+			1)
+				has_staged_changes=1
+				;;
+			128)
+				if ! command git diff --no-ext-diff --cached --quiet -- 2> /dev/null; then
+					has_staged_changes=1
+				fi
+				;;
+		esac
+
+		if ! command git diff --no-ext-diff --quiet -- 2> /dev/null; then
+			has_unstaged_changes=1
+		elif command git ls-files --others --exclude-standard --directory --no-empty-directory -- ':/' 2> /dev/null | read -r; then
+			has_unstaged_changes=1
+		fi
+
+		change_modifiers=""
+		if [ -n "${has_staged_changes}" ]; then
+			change_modifiers="+"
+		fi
+
+		if [ -n "${has_unstaged_changes}" ]; then
+			change_modifiers="${change_modifiers}*"
+		fi
+	fi
+}
+
 if [ "${is_mac}" != "true" ]; then
 	# Showing the error code. From https://stackoverflow.com/a/61740213/1226799
-	PS1='$(code=${?##0};echo ${code:+"\[\033[01;31m\][${code}]\[\033[00m\] "})\[\033[01;32m\]\h\[\033[00m\]:\[\033[01;33m\]`sed "s/\(\(\(\/mnt\)\?\/c\/Users\/\(Justin\|juharri\(\\.NORTHAMERICA\)\?\|justi\)\)\(\/Documents\)\?\|~\)\/workspace/w/g" <<< "\w"`/\[\033[00m\]'
+	PS1='$(code=${?##0};echo ${code:+"\[\033[01;31m\][${code}]\[\033[00m\] "})\[\033[01;32m\]\h\[\033[00m\]:\[\033[01;33m\]`sed "s/\(\(\(\/mnt\)\?\/c\/Users\/\(Justin\|justi\)\)\(\/Documents\)\?\|~\)\/workspace/w/g" <<< "\w"`/\[\033[00m\]'
 	if type -t git &> /dev/null; then
-		PS1+='$(branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null); [ -n "$branch" ] && echo " (\[\033[36;4m\]${branch}\[\033[00m\]$(if [ -n "$(git status --porcelain 2>/dev/null)" ]; then echo "*"; fi))")'
+		function show_git_branch {
+			get_git_branch_modifiers branch modifiers
+			if [ -n "$branch" ]; then
+				printf " (\033[36;4m${branch}\033[0m${modifiers})"
+			fi
+		}
+		PS1+='$(show_git_branch)'
 	fi
 	export PS1+=$'\n\$ '
+
 	if [ -f /proc/sys/kernel/osrelease ] && grep -qi Microsoft /proc/sys/kernel/osrelease; then
 		# Windows Linux Subsystem (WSL)
 
