@@ -148,12 +148,13 @@ gcm() {
 }
 
 # Fetch and switch branch
+# FIXME Might not work well if you already have the branch.
 gsr() {
 	local branch="$1"
 
 	if git show-ref --verify --quiet "refs/heads/$branch"; then
 		git switch "$branch"
-	return
+		return
 	fi
 
 	git fetch origin "refs/heads/$branch" && git switch --no-track --create "$branch" FETCH_HEAD
@@ -581,10 +582,16 @@ fi
 # [repeat for subkeys: key 1, key 2 etc...]
 # save
 
+# Usage: `get_git_branch_modifiers branch modifiers``
 function get_git_branch_modifiers {
-	local -n _branch="$1"
-	local -n change_modifiers="$2"
+	# A portable way to return 2 variables by setting both because `local -n`
+	# doesn't work in zsh.
+	local branch_variable="$1"
+	local _branch=""
+	local modifiers_variable="$2"
+	local change_modifiers=""
 	local git_status has_staged_changes has_unstaged_changes
+
 	_branch="$(command git symbolic-ref --quiet --short HEAD 2> /dev/null)"
 	if [ -z "${_branch}" ]; then
 		_branch="$(command git rev-parse --short HEAD 2> /dev/null)"
@@ -610,7 +617,6 @@ function get_git_branch_modifiers {
 			has_unstaged_changes=1
 		fi
 
-		change_modifiers=""
 		if [ -n "${has_staged_changes}" ]; then
 			change_modifiers="+"
 		fi
@@ -619,6 +625,9 @@ function get_git_branch_modifiers {
 			change_modifiers="${change_modifiers}*"
 		fi
 	fi
+
+	eval "${branch_variable}=\${_branch}"
+	eval "${modifiers_variable}=\${change_modifiers}"
 }
 
 if [ "${is_mac}" != "true" ]; then
