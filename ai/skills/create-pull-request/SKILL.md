@@ -25,6 +25,18 @@ Use the /create-commit-message skill conventions for the pull request title.
 
 Always make the pull request as a draft.
 
+### Fast Path for Already-Pushed Branches
+
+When the user says the branch and commit are already pushed, do not troubleshoot builds, dependency
+installation, or unrelated project setup unless PR creation itself fails or the user asks.
+Use this focused sequence:
+
+1. Verify the current branch and working tree with `git status --short --branch`.
+2. Verify the branch exists remotely with `git ls-remote --heads origin <branch>`.
+3. Check for an existing PR with `gh pr list --head <branch> --json number,title,url,state`.
+4. Read the local diff with `git diff origin/<base>...HEAD --stat` and `git diff origin/<base>...HEAD --name-only`.
+5. Create the draft PR.
+
 ## Pull Request Description
 
 If a pull request template is available in the repository, then always use it and fill in the details.
@@ -32,7 +44,8 @@ The pull request template is normally in the `.github/pull_request_template.md` 
 IMPORTANT: Always read the template directly using the Read tool — do NOT use Glob to search for it, as glob patterns can silently miss exact filenames.
 1. Run `git rev-parse --show-toplevel` via Bash to get the absolute repo root path.
 2. Read `<repo_root>/.github/pull_request_template.md` using the Read tool.
-3. If that file doesn't exist, try reading files in `<repo_root>/.github/PULL_REQUEST_TEMPLATE/` directory.
+3. If that file doesn't exist, try reading files directly under `<repo_root>/.github/PULL_REQUEST_TEMPLATE/`.
+Do not enumerate the whole `.github` directory when looking for a PR template.
 Always summarize what was done and why it was done.
 Do not hard-wrap lines in the PR description. GitHub renders markdown and handles wrapping automatically.
 
@@ -114,7 +127,11 @@ Do NOT pipe it through `tail`, `head`, or similar — those can return before th
 After any additional commit or push to an already-open PR (review feedback, squashes, reverts, amends, etc.), always:
 
 1. Re-fetch the current PR body with `gh pr view <number> --repo <owner>/<repo> --json body -q .body` so you see what is actually on GitHub (not what you originally drafted as there are often changes in GitHub).
-2. Re-read the PR's current diff (e.g. `git diff origin/main...HEAD --stat` or `gh pr diff <number> --repo <owner>/<repo>`) so the description describes the code that now exists, not what existed at initial submission.
+2. Re-read the PR's current diff so the description describes the code that now exists, not what existed at initial submission.
+   Use `git diff origin/<base>...HEAD --stat` for a local summary.
+   Use `gh pr diff <number> --repo <owner>/<repo>` for the GitHub PR diff.
+   Use `gh pr diff <number> --repo <owner>/<repo> --name-only` for the GitHub PR file list.
+   Do not pass `--stat` to `gh pr diff`.
 3. If the Summary or Test plan no longer matches the diff (a feature was reverted, scope shrunk, new files were added, etc.), update the PR body with `gh pr edit <number> --repo <owner>/<repo> --body "..."`.
 4. If the PR title no longer describes the diff, update it with `--title` in the same `gh pr edit` call.
 
