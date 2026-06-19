@@ -63,6 +63,17 @@ After sending the reply, remove the :robot_face: reaction.
 - Keep messages brief and to the point.
 - When sharing links (PRs, issues, docs), include a short description of what the link is. Try to save people time so that they don't all need to click on the link to understand why it's relevant.
 
+### Manual Slack copy/paste blocks shown in chat
+
+When writing a message block in chat for Justin to manually copy and paste into Slack, prefer GitHub-style markdown links:
+
+```md
+[label](https://example.com)
+```
+
+Justin copies from Codex chat, and this format survives that workflow better than Slack-native `<url|label>` links.
+Use Slack-native `<url|label>` only when creating a native Slack draft, sending through Slack API tools that expect raw Slack mrkdwn, or editing raw Slack message text.
+
 ### Slack drafts (`tool-gateway`'s `slack_send_message_draft`)
 
 Empirically verified by sending drafts to Justin's self-DM and reading the compose box visually. Findings:

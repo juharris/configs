@@ -148,16 +148,26 @@ gcm() {
 }
 
 # Fetch and switch branch
-# FIXME Might not work well if you already have the branch.
 gsr() {
 	local branch="$1"
 
+	git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" || return
+
 	if git show-ref --verify --quiet "refs/heads/$branch"; then
-		git switch "$branch"
-		return
+	git switch "$branch" || return
+
+	if git merge-base --is-ancestor HEAD "origin/$branch"; then
+		git merge --ff-only "origin/$branch"
+	elif [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/$branch)" ]; then
+		echo "Local $branch differs from origin/$branch." >&2
+		echo "Inspect with: git log --oneline --left-right $branch...origin/$branch" >&2
+		return 1
 	fi
 
-	git fetch origin "refs/heads/$branch" && git switch --no-track --create "$branch" FETCH_HEAD
+	return
+	fi
+
+	git switch --track --create "$branch" "origin/$branch"
 }
 
 # Pull the default branch.
@@ -582,6 +592,35 @@ fi
 # [repeat for subkeys: key 1, key 2 etc...]
 # save
 
+# These helpers run as background jobs.
+# Use `env git` to bypass aliases and functions.
+# It avoids changing bash's background function flow.
+git_has_staged_changes() {
+	local git_status
+
+	env git --no-optional-locks diff-index --quiet --cached HEAD -- 2> /dev/null
+	git_status=$?
+	case "${git_status}" in
+		1)
+			return 0
+			;;
+		128)
+			! env git --no-optional-locks diff --no-ext-diff --cached --quiet -- 2> /dev/null
+			return
+			;;
+	esac
+
+	return 1
+}
+
+git_has_unstaged_changes() {
+	if ! env git --no-optional-locks diff --no-ext-diff --quiet -- 2> /dev/null; then
+		return 0
+	fi
+
+	env git --no-optional-locks ls-files --others --exclude-standard --directory --no-empty-directory -- ':/' 2> /dev/null | read -r
+}
+
 # Usage: `get_git_branch_modifiers branch modifiers``
 function get_git_branch_modifiers {
 	# A portable way to return 2 variables by setting both because `local -n`
@@ -590,7 +629,7 @@ function get_git_branch_modifiers {
 	local _branch=""
 	local modifiers_variable="$2"
 	local change_modifiers=""
-	local git_status has_staged_changes has_unstaged_changes
+	local has_staged_changes has_unstaged_changes staged_check_pid unstaged_check_pid
 
 	_branch="$(command git symbolic-ref --quiet --short HEAD 2> /dev/null)"
 	if [ -z "${_branch}" ]; then
@@ -598,30 +637,16 @@ function get_git_branch_modifiers {
 	fi
 
 	if [ -n "${_branch}" ]; then
-		command git diff-index --quiet --cached HEAD -- 2> /dev/null
-		git_status=$?
-		case "${git_status}" in
-			1)
-				has_staged_changes=1
-				;;
-			128)
-				if ! command git diff --no-ext-diff --cached --quiet -- 2> /dev/null; then
-					has_staged_changes=1
-				fi
-				;;
-		esac
+		git_has_staged_changes &
+		staged_check_pid=$!
+		git_has_unstaged_changes &
+		unstaged_check_pid=$!
 
-		if ! command git diff --no-ext-diff --quiet -- 2> /dev/null; then
-			has_unstaged_changes=1
-		elif command git ls-files --others --exclude-standard --directory --no-empty-directory -- ':/' 2> /dev/null | read -r; then
-			has_unstaged_changes=1
-		fi
-
-		if [ -n "${has_staged_changes}" ]; then
+		if wait "${staged_check_pid}"; then
 			change_modifiers="+"
 		fi
 
-		if [ -n "${has_unstaged_changes}" ]; then
+		if wait "${unstaged_check_pid}"; then
 			change_modifiers="${change_modifiers}*"
 		fi
 	fi
