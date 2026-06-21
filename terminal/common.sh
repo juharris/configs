@@ -639,15 +639,13 @@ function get_git_branch_modifiers {
 	if [ -n "${_branch}" ]; then
 		git_has_staged_changes &
 		staged_check_pid=$!
-		git_has_unstaged_changes &
-		unstaged_check_pid=$!
 
-		if wait "${staged_check_pid}"; then
-			change_modifiers="+"
+		if git_has_unstaged_changes; then
+			change_modifiers="*"
 		fi
 
-		if wait "${unstaged_check_pid}"; then
-			change_modifiers="${change_modifiers}*"
+		if wait "${staged_check_pid}"; then
+			change_modifiers="${change_modifiers}+"
 		fi
 	fi
 
