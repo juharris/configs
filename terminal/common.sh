@@ -592,9 +592,37 @@ fi
 # [repeat for subkeys: key 1, key 2 etc...]
 # save
 
-# These helpers run as background jobs.
-# Use `env git` to bypass aliases and functions.
-# It avoids changing bash's background function flow.
+# These helpers are used by synchronous and asynchronous prompts.
+# Use `env git` in status checks to bypass aliases and functions.
+# That avoids changing bash's background function flow.
+git_change_modifiers() {
+	local staged_check_pid staged_modifier="" unstaged_modifier=""
+
+	git_has_staged_changes &
+	staged_check_pid=$!
+
+	if git_has_unstaged_changes; then
+		unstaged_modifier="*"
+	fi
+
+	if wait "${staged_check_pid}"; then
+		staged_modifier="+"
+	fi
+
+	printf "%s%s" "${staged_modifier}" "${unstaged_modifier}"
+}
+
+git_current_branch() {
+	local current_branch
+
+	current_branch="$(command git symbolic-ref --quiet --short HEAD 2> /dev/null)"
+	if [ -z "${current_branch}" ]; then
+		current_branch="$(command git rev-parse --short HEAD 2> /dev/null)"
+	fi
+
+	printf "%s" "${current_branch}"
+}
+
 git_has_staged_changes() {
 	local git_status
 
@@ -621,7 +649,19 @@ git_has_unstaged_changes() {
 	env git --no-optional-locks ls-files --others --exclude-standard --directory --no-empty-directory -- ':/' 2> /dev/null | read -r
 }
 
-# Usage: `get_git_branch_modifiers branch modifiers``
+git_staged_change_modifier() {
+	if git_has_staged_changes; then
+		printf "+"
+	fi
+}
+
+git_unstaged_change_modifier() {
+	if git_has_unstaged_changes; then
+		printf "*"
+	fi
+}
+
+# Usage: `get_git_branch_modifiers branch modifiers`
 function get_git_branch_modifiers {
 	# A portable way to return 2 variables by setting both because `local -n`
 	# doesn't work in zsh.
@@ -629,24 +669,11 @@ function get_git_branch_modifiers {
 	local _branch=""
 	local modifiers_variable="$2"
 	local change_modifiers=""
-	local has_staged_changes has_unstaged_changes staged_check_pid unstaged_check_pid
 
-	_branch="$(command git symbolic-ref --quiet --short HEAD 2> /dev/null)"
-	if [ -z "${_branch}" ]; then
-		_branch="$(command git rev-parse --short HEAD 2> /dev/null)"
-	fi
+	_branch="$(git_current_branch)"
 
 	if [ -n "${_branch}" ]; then
-		git_has_staged_changes &
-		staged_check_pid=$!
-
-		if git_has_unstaged_changes; then
-			change_modifiers="*"
-		fi
-
-		if wait "${staged_check_pid}"; then
-			change_modifiers="${change_modifiers}+"
-		fi
+		change_modifiers="$(git_change_modifiers)"
 	fi
 
 	eval "${branch_variable}=\${_branch}"
