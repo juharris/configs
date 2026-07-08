@@ -14,6 +14,8 @@ Directors and colleagues often use the user's code as examples for how to write 
 ## Coding Conventions
 - Add new members and methods in a mostly alphabetical order for clarity and to avoid merge conflicts.
 
+See more guidelines in [code-review-guidelines.md](./code-review-guidelines.md).
+
 ## Secrets and Environment Variables
 
 Avoid adding fallbacks for secrets and environment variables in code.
