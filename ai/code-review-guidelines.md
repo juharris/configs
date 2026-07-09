@@ -89,6 +89,15 @@ This rule applies to ALL generated comment text, including inline code review co
   Keyword arguments are still useful for optional arguments and for cases where the call site is not specific and needs flexible named options with callers in many places.
   For example, for private methods, positional arguments are almost always preferred.
 
+- Avoid unnecessary `to_s` conversions in Ruby.
+  `to_s` hides `nil` by converting it to an empty string, which is misleading and can mask the real issue.
+  Prefer passing the original value through or validating the expected type explicitly.
+
+- Never use the patten of `Class.call(...)` which does `new(...).execute`
+  because it's wasteful and creates stateful classes with complex coupling.
+  Encourage callers to instantiate a class and use the method(s) they need directly.
+  This matches a dependency injection pattern used in many languages where processor singleton classes are re-used.
+
 ## Type Checking
 
 Prefer `# typed: strict` at the top of files.
