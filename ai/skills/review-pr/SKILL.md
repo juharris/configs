@@ -11,7 +11,10 @@ Review PR #$0 following the guidelines in @~/workspace/configs/ai/code-review-gu
 Read those files first, then:
 
 1. Fetch PR info with `gh pr view $0` and `gh pr diff $0`
-2. Check for existing comments in the PR with `gh pr comments $0`
+2. Check for existing PR comments with `gh pr comments $0` and inline review comments with the GitHub API.
+   Treat Justin-authored inline comments that explicitly ask his AI to add detail, add details, or explain something
+   as high-priority review work.
+   Always reply to those threads before creating new comments.
 3. Review according to the guidelines.
 4. Provide structured feedback with specific line references.
 5. Only add comments to files on specific lines or the file itself or respond to existing comments if they are relevant to the review.
@@ -19,6 +22,8 @@ Read those files first, then:
   When a review comment was directly influenced by a specific hint or direction from Justin in the chat, note this in the comment (e.g., "🤖 AI Review (influenced directly by Justin): ...") to distinguish it from independently generated feedback.
   Never comment directly on the pull request and only comment in files.
   Prefer to reply to existing relevant comment threads over starting new threads in a file.
+  Always reply to Justin-authored threads that explicitly ask his AI to add more detail, provide details,
+  or explain the reasoning, for example "My AI will explain why."
 6. In the final response, include a Markdown link to the reviewed PR so Justin can open it quickly.
 
 ## Review Heuristics
