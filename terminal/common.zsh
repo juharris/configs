@@ -105,7 +105,7 @@ function _git_branch_prompt_render_segment {
 		if [[ "$_git_branch_prompt_modifiers_ready" == "true" ]]; then
 			modifiers="$_git_branch_prompt_modifiers"
 		else
-			modifiers="?"
+			modifiers=" ?"
 		fi
 
 		_git_branch_prompt_segment=" (%F{cyan}%U$branch%u%f${modifiers})"

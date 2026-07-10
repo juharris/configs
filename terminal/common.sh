@@ -593,20 +593,29 @@ fi
 # save
 
 # These helpers are used by synchronous and asynchronous prompts.
-# Use `env git` in status checks to bypass aliases and functions.
-# That avoids changing bash's background function flow.
+# Use `env git` in prompt checks to bypass aliases and functions.
+# That keeps local shell customizations from changing prompt behavior.
+if [ "${_terminal_type}" == "zsh" ]; then
+	GIT_PROMPT_COLOR_RESET="%f"
+	GIT_PROMPT_COLOR_STAGED="%F{green}"
+	GIT_PROMPT_COLOR_UNSTAGED="%F{red}"
+else
+	GIT_PROMPT_COLOR_RESET="$(printf "\033[0m")"
+	GIT_PROMPT_COLOR_STAGED="$(printf "\033[32m")"
+	GIT_PROMPT_COLOR_UNSTAGED="$(printf "\033[31m")"
+fi
+
 git_change_modifiers() {
-	local staged_check_pid staged_modifier="" unstaged_modifier=""
+	local staged_count staged_modifier="" unstaged_count unstaged_modifier=""
 
-	git_has_staged_changes &
-	staged_check_pid=$!
-
-	if git_has_unstaged_changes; then
-		unstaged_modifier="*"
+	unstaged_count="$(git_unstaged_change_count)"
+	if [ "${unstaged_count}" -gt 0 ]; then
+		unstaged_modifier=" ${GIT_PROMPT_COLOR_UNSTAGED}${unstaged_count}*${GIT_PROMPT_COLOR_RESET}"
 	fi
 
-	if wait "${staged_check_pid}"; then
-		staged_modifier="+"
+	staged_count="$(git_staged_change_count)"
+	if [ "${staged_count}" -gt 0 ]; then
+		staged_modifier=" ${GIT_PROMPT_COLOR_STAGED}${staged_count}+${GIT_PROMPT_COLOR_RESET}"
 	fi
 
 	printf "%s%s" "${staged_modifier}" "${unstaged_modifier}"
@@ -649,10 +658,18 @@ git_has_unstaged_changes() {
 	env git --no-optional-locks ls-files --others --exclude-standard --directory --no-empty-directory -- ':/' 2> /dev/null | read -r
 }
 
+git_staged_change_count() {
+	env git --no-optional-locks diff --no-ext-diff --cached --name-only -- 2> /dev/null | wc -l | tr -d ' '
+}
+
 git_staged_change_modifier() {
 	if git_has_staged_changes; then
 		printf "+"
 	fi
+}
+
+git_unstaged_change_count() {
+	env git --no-optional-locks diff --no-ext-diff --name-only -- 2> /dev/null | wc -l | tr -d ' '
 }
 
 git_unstaged_change_modifier() {
