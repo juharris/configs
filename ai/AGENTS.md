@@ -95,6 +95,12 @@ Do NOT invent alternative commands — fix the environment.
 
 Run tests and style fixes for new and changed code.
 
+# Git Staging
+
+Do not stage or unstage anything unless the user explicitly asks you to.
+The user uses the staging area to track changes they have reviewed and like, so preserve the index exactly as you found it.
+When resolving conflicts or making changes, edit the working tree only and let the user decide what to stage.
+
 # Git Branch Names
 In shared repositories, such as ones in the user's company, prefix the branch name with `jus/` to indicate that the branch is being worked on by the user.
 
