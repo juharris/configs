@@ -151,23 +151,12 @@ gcm() {
 gsr() {
 	local branch="$1"
 
-	git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" || return
-
 	if git show-ref --verify --quiet "refs/heads/$branch"; then
-	git switch "$branch" || return
-
-	if git merge-base --is-ancestor HEAD "origin/$branch"; then
-		git merge --ff-only "origin/$branch"
-	elif [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/$branch)" ]; then
-		echo "Local $branch differs from origin/$branch." >&2
-		echo "Inspect with: git log --oneline --left-right $branch...origin/$branch" >&2
-		return 1
+		git switch "$branch"
+	else
+		git fetch origin "refs/heads/$branch" &&
+			git switch --create "$branch" FETCH_HEAD
 	fi
-
-	return
-	fi
-
-	git switch --track --create "$branch" "origin/$branch"
 }
 
 # Pull the default branch.
