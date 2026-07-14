@@ -621,50 +621,13 @@ git_current_branch() {
 	printf "%s" "${current_branch}"
 }
 
-git_has_staged_changes() {
-	local git_status
-
-	env git --no-optional-locks diff-index --quiet --cached HEAD -- 2> /dev/null
-	git_status=$?
-	case "${git_status}" in
-		1)
-			return 0
-			;;
-		128)
-			! env git --no-optional-locks diff --no-ext-diff --cached --quiet -- 2> /dev/null
-			return
-			;;
-	esac
-
-	return 1
-}
-
-git_has_unstaged_changes() {
-	if ! env git --no-optional-locks diff --no-ext-diff --quiet -- 2> /dev/null; then
-		return 0
-	fi
-
-	env git --no-optional-locks ls-files --others --exclude-standard --directory --no-empty-directory -- ':/' 2> /dev/null | read -r
-}
-
 git_staged_change_count() {
 	env git --no-optional-locks diff --no-ext-diff --cached --name-only -- 2> /dev/null | wc -l | tr -d ' '
 }
 
-git_staged_change_modifier() {
-	if git_has_staged_changes; then
-		printf "+"
-	fi
-}
 
 git_unstaged_change_count() {
 	env git --no-optional-locks diff --no-ext-diff --name-only -- 2> /dev/null | wc -l | tr -d ' '
-}
-
-git_unstaged_change_modifier() {
-	if git_has_unstaged_changes; then
-		printf "*"
-	fi
 }
 
 # Usage: `get_git_branch_modifiers branch modifiers`
@@ -690,13 +653,13 @@ if [ "${is_mac}" != "true" ]; then
 	# Showing the error code. From https://stackoverflow.com/a/61740213/1226799
 	PS1='$(code=${?##0};echo ${code:+"\[\033[01;31m\][${code}]\[\033[00m\] "})\[\033[01;32m\]\h\[\033[00m\]:\[\033[01;33m\]`sed "s/\(\(\(\/mnt\)\?\/c\/Users\/\(Justin\|justi\)\)\(\/Documents\)\?\|~\)\/workspace/w/g" <<< "\w"`/\[\033[00m\]'
 	if type -t git &> /dev/null; then
-		function show_git_branch {
+		function show_git_info {
 			get_git_branch_modifiers branch modifiers
 			if [ -n "$branch" ]; then
 				printf " (\033[36;4m${branch}\033[0m${modifiers})"
 			fi
 		}
-		PS1+='$(show_git_branch)'
+		PS1+='$(show_git_info)'
 	fi
 	export PS1+=$'\n\$ '
 
