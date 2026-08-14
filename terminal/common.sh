@@ -138,7 +138,19 @@ alias ...='cd ../..'
 
 # Git
 alias gc='git checkout'
-alias gs='git switch'
+alias gsw='git switch'
+if ! type gs > /dev/null 2>&1; then
+	alias gs='git switch'
+fi
+
+g() {
+	if [ "$#" -eq 0 ]; then
+		git status
+	else
+		gsr "$@"
+	fi
+}
+
 # Checkout and pull the default branch.
 # Would need to do `git remote set-head origin --auto` if a repo changes the default.
 # From https://stackoverflow.com/questions/28666357/git-how-to-get-default-branch#comment97435365_44750379
