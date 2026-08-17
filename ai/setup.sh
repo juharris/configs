@@ -5,8 +5,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 CODEX_DIR="$HOME/.codex"
-SKILLS_DIR="$CLAUDE_DIR/skills"
+COPILOT_DIR="$HOME/.copilot"
+
 AGENTS_SKILLS_DIR="$HOME/.agents/skills"
+CLAUDE_SKILLS_DIR="$CLAUDE_DIR/skills"
+COPILOT_SKILLS_DIR="$COPILOT_DIR/skills"
 
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -15,8 +18,9 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 SKILL_TARGETS=(
-  "$SKILLS_DIR"
   "$AGENTS_SKILLS_DIR"
+  "$COPILOT_SKILLS_DIR"
+  "$CLAUDE_SKILLS_DIR"
 )
 
 CONTEXT_TARGETS=(
