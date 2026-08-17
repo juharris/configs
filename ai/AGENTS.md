@@ -14,16 +14,16 @@ Directors and colleagues often use the user's code as examples for how to write 
 ## Coding Conventions
 - Add new members and methods in a mostly alphabetical order for clarity and to avoid merge conflicts.
 
-See more guidelines in [code-review-guidelines.md](./code-review-guidelines.md).
+See more guidelines in [code-review-guidelines.md](~/workspace/configs/ai/code-review-guidelines.md).
 
 ## Secrets and Environment Variables
 
 Avoid adding fallbacks for secrets and environment variables in code.
 If a secret or environment variable is missing, it's better for the code to fail immediately with a clear error message than to silently use a fallback value that may cause confusion or unintended consequences.
 
-# Code Comments
+## Code Comments
 
-- Always start a sentence on a new line in comments to avoid awkward line wrapping.
+- Always start a sentence on a new line in comments to avoid awkward line wrapping for legibility and avoid bad diffs in changes.
 
 Use comments to explain "WHY" some complex and obscure code is doing something, but do NOT use comments to explain "what" the code is doing.
 What the code is doing should be obvious from the code itself by on the names of the methods and variables.
@@ -39,6 +39,12 @@ These should be encouraged, written for new classes and methods, and preserved i
 Do not delete existing comments when making changes, unless the comments are not true anymore.
 There are often existing comments that explain why the code is doing something and those comments should be preserved, unless they are no longer true.
 Retain most existing comments and add new comments as necessary to explain why the code is doing something, but do not delete existing comments unless they are no longer true.
+
+## Markdown Formatting
+
+- Preserve intentional sentence wrapping in `.md` files.
+- Start each sentence on a new line when editing prose for legibility and to avoid bad diffs in changes.
+- Do not reflow Markdown prose with formatters.
 
 # Working Directory
 

@@ -2,7 +2,7 @@
 
 Personal guidelines for reviewing pull requests.
 
-Also reference @~/workspace/configs/ai/AGENTS.md for general coding principles.
+Also reference ~/workspace/configs/ai/AGENTS.md for general coding principles.
 
 ## Core Philosophy
 
@@ -79,4 +79,4 @@ This rule applies to ALL generated comment text, including inline code review co
 
 # Ruby
 
-See [ruby/code-guidelines.md](./ruby/code-guidelines.md) for Ruby-specific guidelines.
+See [ruby/code-guidelines.md](~/workspace/configs/ai/ruby/code-guidelines.md) for Ruby-specific guidelines.
