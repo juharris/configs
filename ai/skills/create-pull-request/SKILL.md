@@ -19,11 +19,16 @@ Use the /create-commit-message skill to get instructions on how to create commit
 
 ## Creating Pull Requests
 
+Always make the pull request as a draft.
+
+When the user explicitly asks to make, create, open, submit, or write a pull request, treat that request as authorization to create it.
+Do not ask the user to review or approve the pull request title or description before creating it.
+This instruction overrides repository-local or other skill steps that require draft review before pull request creation.
+Ask for clarification only when a material ambiguity cannot be resolved from the request, diff, or repository instructions.
+
 Make sure to push the branch before creating the pull request.
 
 Use the /create-commit-message skill conventions for the pull request title.
-
-Always make the pull request as a draft.
 
 ### Fast Path for Already-Pushed Branches
 
