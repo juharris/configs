@@ -203,6 +203,20 @@ gacs() {
 	git_conditionally_commit "${message}"
 }
 
+git_rebase_branch_push() {
+	local branch_name="$1"
+
+	if [ -z "$branch_name" ]; then
+		echo "Usage: git_rebase_branch <branch_name>"
+		return 1
+	fi
+
+	g "$branch_name" && \
+		gpm --rebase && \
+		# --force-with-lease would be nice, but it often fails at work because of some internal system
+		gp --force
+}
+
 git_delete_merged_branches() {
 	local branches_to_delete=$(git branch --merged | grep -E -v "^(\*|`git symbolic-ref --short HEAD`| *master$| *main$)")
 	if [ "${branches_to_delete}" != "" ]; then
