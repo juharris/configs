@@ -54,6 +54,10 @@ Do not enumerate the whole `.github` directory when looking for a PR template.
 Always summarize what was done and why it was done.
 Do not hard-wrap lines in the PR description. GitHub renders markdown and handles wrapping automatically.
 
+Do not include Tophatting, Test plan, Validation, or similar sections when they only repeat checks that CI runs.
+Never instruct reviewers to run tests, typechecking, linting, or other automated CI checks.
+Include manual verification only when it covers behavior that CI cannot exercise; otherwise omit the verification section entirely.
+
 ## Attribution
 
 Attribution is agent-specific.
