@@ -203,12 +203,11 @@ gacs() {
 	git_conditionally_commit "${message}"
 }
 
-git_rebase_branch_push() {
+git_rebase_push() {
 	local branch_name="$1"
 
 	if [ -z "$branch_name" ]; then
-		echo "Usage: git_rebase_branch <branch_name>"
-		return 1
+		branch_name=`git rev-parse --abbrev-ref HEAD`
 	fi
 
 	g "$branch_name" && \
