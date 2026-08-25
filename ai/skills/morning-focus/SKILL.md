@@ -24,6 +24,8 @@ Run all of the following in one tool-call batch:
 2. `date -v-3d +%Y-%m-%dT%H:%M:%S%z` — 3-day lookback cutoff (macOS).
 3. Get Justin's Vault profile (current user). The response already includes his **Slack ID** and **manager's ID and name** — you do NOT need a separate Slack user lookup for Justin.
 
+Name the chat "[daily] {`date '+%a %b %d'`}", filling in the current date, for example `[daily] Tue Aug 25`.
+
 ## Step 2: Gather signals (in parallel)
 
 Fire all of these in one batch. Do not serialize them.
