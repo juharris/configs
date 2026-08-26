@@ -30,7 +30,7 @@ Rust types define the configuration contract, and a generated local JSON Schema 
 
 ## Goals
 
-- Make discovery commands, sections, button labels, button ordering, refresh intervals, repository paths, and autocomplete declaratively configurable.
+- Make discovery commands, cache TTLs, sections, button labels, button ordering, refresh intervals, and autocomplete declaratively configurable.
 - Load configuration from multiple ordered directories and merge multiple ordered root features selected in the browser.
 - Provide an Options page for Optify directories and active features.
 - Select a light, dark, or system theme through strongly typed Optify configuration.
@@ -173,7 +173,7 @@ type OptifySetup = {
 ```
 
 There is no local-storage wrapper object, version field, or third application key.
-Theme, sections, buttons, commands, prompts, repositories, refresh intervals, drafts, run history, and every other application option belong in Optify feature files or transient in-memory state.
+Theme, sections, buttons, commands, prompts, refresh intervals, drafts, run history, and every other application option belong in Optify feature files or transient in-memory state.
 If a future incompatible storage shape is necessary, it should use new key names and an explicit migration based on that concrete requirement.
 
 The page lets a person add, edit, remove, and reorder both Optify lists.
@@ -261,7 +261,7 @@ For initial Optify setup or a directory or feature change, the configuration ser
 5. Deserialize the merged value into the complete `RootConfig`.
 6. Reject unknown fixed-shape fields.
 7. Compile every Bash command and URL template.
-8. Validate cross-field requirements such as prompt configuration, repository placeholders, and unique section IDs.
+8. Validate cross-field requirements such as prompt configuration and unique section IDs.
 9. Verify the configured Bash executable.
 10. Atomically publish the candidate watcher, accepted Optify setup, and first immutable configuration snapshot.
 
@@ -299,8 +299,7 @@ The keys inside `options` are:
 | `application` | object | Defines concurrency, output, refresh, and timeout limits |
 | `autocomplete` | object | Defines the one inline command used for prompt suggestions |
 | `buttons` | object | Defines `always` and `advanced` lists for issues and pull requests |
-| `repositories` | map | Maps GitHub `owner/name` values to local directories |
-| `sections` | ordered list | Defines each item section and its complete discovery command |
+| `sections` | ordered list | Defines each item section, complete discovery command, cache TTL, and page size |
 
 Fixed-shape objects reject unknown fields.
 Required values have no implicit fallback unless the generated schema documents a safe default.
@@ -319,7 +318,6 @@ dashboard/configs/
     application.yaml
     autocomplete.yaml
     buttons.yaml
-    repositories.yaml
     sections.yaml
 ```
 
@@ -331,7 +329,6 @@ imports:
   - dashboard/application
   - dashboard/autocomplete
   - dashboard/buttons
-  - dashboard/repositories
   - dashboard/sections
 ```
 
@@ -384,20 +381,18 @@ options:
       always:
         - label: Investigate
           command: >-
-            pi --print 'Investigate {item.url}. {prompt}'
+            cd; pi --print 'Investigate {item.url}. {prompt}'
           prompt:
             label: Additional instructions
             placeholder: Add context or constraints
-          working_directory: '{repository.path}'
       advanced:
         - label: Start work
           command: >-
-            claude --print 'Implement {item.url}. {prompt}'
+            cd; claude --print 'Implement {item.url}. {prompt}'
           confirm: true
           prompt:
             label: Implementation details
             placeholder: Add constraints or acceptance criteria
-          working_directory: '{repository.path}'
         - label: Open
           url: '{item.url}'
 
@@ -405,30 +400,19 @@ options:
       always:
         - label: Review
           command: >-
-            codex exec '/review {item.url} {prompt}'
+            cd; codex exec '/review {item.url} {prompt}'
           prompt:
             label: Review focus
             placeholder: Add areas to inspect closely
-          working_directory: '{repository.path}'
       advanced:
         - label: Second opinion
           command: >-
-            claude --print 'Review {item.url}. {prompt}'
+            cd; claude --print 'Review {item.url}. {prompt}'
           prompt:
             label: Review focus
             placeholder: Add areas to inspect closely
-          working_directory: '{repository.path}'
         - label: Open
           url: '{item.url}'
-```
-
-`dashboard/configs/dashboard/repositories.yaml` maps repositories to local paths:
-
-```yaml
-options:
-  repositories:
-    juharris/configs:
-      path: /Users/jus/workspace/configs
 ```
 
 `dashboard/configs/dashboard/sections.yaml` keeps each complete discovery command with its section:
@@ -439,26 +423,35 @@ options:
     - id: authored_pull_requests
       title: My pull requests
       item_kind: pull_request
+      cache_ttl_seconds: 300
       command: >-
         gh search prs
-        'author:@me state:open'
+        --author @me
+        --state open
         --json assignees,author,isDraft,labels,number,repository,state,title,updatedAt,url
+      items_per_page: 6
 
     - id: requested_reviews
       title: Reviews requested
       item_kind: pull_request
+      cache_ttl_seconds: 300
       command: >-
         gh search prs
-        'review-requested:@me state:open'
+        --review-requested @me
+        --state open
         --json assignees,author,isDraft,labels,number,repository,state,title,updatedAt,url
+      items_per_page: 6
 
     - id: assigned_issues
       title: Assigned issues
       item_kind: issue
+      cache_ttl_seconds: 300
       command: >-
         gh search issues
-        'assignee:@me state:open'
+        --assignee @me
+        --state open
         --json assignees,author,labels,number,repository,state,title,updatedAt,url
+      items_per_page: 6
 ```
 
 YAML folded strings keep long commands readable while producing one command-line string.
@@ -485,9 +478,10 @@ Each button has a visible `label` and exactly one of:
 - `command`, containing the complete inline command to run.
 - `url`, containing a URL template to open in a new browser tab.
 
-A command button may also define `confirm`, `prompt`, and `working_directory`.
+A command button may also define `confirm` and `prompt`.
 A prompt declaration requires the command to contain `{prompt}`, and `{prompt}` requires a prompt declaration.
-A working directory containing `{repository.path}` disables the button with a clear reason when the item repository has no mapping.
+Commands that should change directories use ordinary Bash `cd` syntax in the configured string.
+The dashboard does not inspect local checkouts or disable actions based on their presence.
 
 Buttons do not need configured IDs.
 The UI identifies a button by item kind, list name, list index, and configuration revision.
@@ -528,7 +522,6 @@ Initial placeholders are:
 - `{item.repository}` for the normalized `owner/name`.
 - `{item.url}` for the validated HTTPS item URL.
 - `{prompt}` for the optional text entered for the selected button.
-- `{repository.path}` for the mapped local repository directory.
 
 Each placeholder is valid only where its context exists.
 Unknown placeholders, malformed braces, unavailable context, and empty command templates are errors.
@@ -536,11 +529,10 @@ There is no `{section.query}`; the complete discovery query stays directly in th
 
 ### Resolution and preview
 
-`CommandResolver` produces one immutable `ResolvedCommand` containing the Bash executable, compiled script, positional values, and optional working directory.
+`CommandResolver` produces one immutable `ResolvedCommand` containing the Bash executable, compiled script, and positional values.
 Both `ProcessRunner` and `CommandPreviewFormatter` consume that same value.
 
 The preview formatter uses the compiled template to render every dynamic value with Bash-safe quoting for display.
-If a working directory is configured, the native tooltip contains a separately labelled working directory followed by the full command.
 The title shows the resolved configured command rather than the internal positional-parameter plumbing.
 The preview is never parsed or executed.
 
@@ -549,7 +541,7 @@ A URL button receives its complete validated URL as `title`.
 If resolution fails for an item, the button is disabled and its `title` contains the same failure reason rather than a fabricated command.
 
 Clicking a button sends only its position, configuration revision, prompt, and item reference through the WebSocket.
-The browser never sends a command string, executable, arguments, or working directory.
+The browser never sends a command string, executable, or arguments.
 
 ## Item discovery
 
@@ -559,17 +551,21 @@ The backend does not append a query, flags, fields, or executable.
 A successful discovery command writes a JSON array to standard output.
 The selected `item_kind` determines whether each object is validated as a pull request or issue.
 The normalized item contains the repository, number, title, URL, author, labels, state, update time, and available review or assignment fields.
+The item `url` is its one destination link and is also the value exposed through `{item.url}` to configured buttons.
+Discovery commands may replace a provider's returned URL while normalizing their output; the dashboard does not apply a second link-template layer.
+An optional `source` string may disambiguate otherwise identical item references without changing provider-neutral backend behavior.
 
 The example uses `gh search`, but a custom command may produce the same JSON shape.
 No provider-specific discovery command is hidden in Rust.
 
-Sections refresh independently.
+Sections refresh independently and paginate their current items using the section's required positive `items_per_page` value.
+Each section's required positive `cache_ttl_seconds` value controls its in-memory discovery cache.
+Successful normalized results are cached by the complete command, shell, item kind, and TTL so a configuration reload reuses unchanged queries while a changed query executes immediately.
+Failures are not cached.
 A valid result atomically replaces that section's items.
 A non-zero exit, timeout, invalid JSON, or invalid item preserves the previous data, marks it stale, and displays a sanitized error with a retry button.
+Non-zero exits include bounded, control-character-filtered standard error so local command failures remain actionable.
 Refreshes for the same section are coalesced and global process concurrency is bounded by configuration.
-
-Repository-dependent buttons are enabled only when the normalized `owner/name` has a local mapping.
-Unmapped items remain visible, and buttons that do not need a local path continue to work.
 
 ## Command execution
 
@@ -579,7 +575,6 @@ It never accepts an executable or argument vector from a WebSocket message.
 The runner:
 
 - Invokes the configured Bash executable with the fixed compiled script and separate positional values.
-- Applies the configured working directory to the Bash process.
 - Captures standard output and standard error concurrently.
 - Emits bounded text chunks and a final exit status.
 - Enforces global concurrency, per-run output, and timeout limits.
@@ -606,10 +601,9 @@ Every application request uses the WebSocket, including:
 - Apply ordered configuration directories and root features.
 - Retrieve dashboard and active-run snapshots.
 - Refresh a section.
-- Run or confirm a button.
+- Preview or run a button.
 - Cancel a run.
 - Request or cancel autocomplete.
-- Acknowledge server-initiated requests.
 
 The transport uses JSON text messages.
 Serde tagged enums define the protocol, and ts-rs generates matching TypeScript types.
@@ -618,7 +612,6 @@ Client-to-server envelopes are:
 
 - `authenticate`, containing the bootstrap token and supported protocol version.
 - `request`, containing a unique request ID and one typed request variant.
-- `ui_request_result`, containing the result of a server-initiated confirmation.
 
 Server-to-client envelopes are:
 
@@ -626,7 +619,6 @@ Server-to-client envelopes are:
 - `response`, correlated to a request ID.
 - `error`, with a stable code, safe message, retryability, and optional field path.
 - `event`, with an event ID, sequence number, and typed payload.
-- `ui_request`, with a request ID, deadline, and typed confirmation operation.
 
 Run events cover queued, started, output, cancellation requested, completed, failed, timed out, and cancelled states.
 A cancel response confirms that cancellation was requested.
@@ -652,12 +644,12 @@ The server replays retained events when possible and otherwise requires fresh da
 Mutating requests are not replayed automatically.
 
 Multiple tabs create independent connections.
-Responses and confirmation requests return to their originating tab, while shared state changes may be broadcast to all authenticated tabs.
+Responses and run events return to their originating tab, while shared state changes may be broadcast to all authenticated tabs.
 
 ### Handler encapsulation
 
 `ConnectionSession` owns authentication, parsing, queueing, and socket lifecycle.
-`MessageRouter` delegates each request enum variant to a focused handler such as `ApplyOptifySetupHandler`, `CancelRunHandler`, `RefreshSectionHandler`, or `RunButtonHandler`.
+`MessageRouter` delegates each request enum variant to a focused handler such as `ApplyOptifySetupHandler`, `CancelRunHandler`, `PreviewButtonHandler`, `RefreshSectionHandler`, or `RunButtonHandler`.
 Handlers receive application services through constructor-injected traits and return typed results.
 
 Services publish events through an `EventPublisher` trait implemented by the connection registry.
@@ -700,7 +692,9 @@ The first release has an Options page at `/options`, one dashboard page, and a r
 - Theme CSS variables and the `color-scheme` property are applied to the document root whenever a configuration snapshot is accepted.
 - The `system` theme follows `prefers-color-scheme` without changing the configured value.
 - Sections appear in merged configuration order and show title, item count, refresh status, stale status, and last successful refresh.
-- Items show repository, number, title, author, labels, state, and relevant review or assignment state.
+- Items show repository, number, title, author, labels, a compact accessible status icon, and relevant review or assignment state.
+- Draft, open, merged, and closed status icons are visually distinct and expose their full status label to assistive technology.
+- Each section paginates independently using its configured item count.
 - Every `always` button appears in merged configuration order.
 - A per-item accessible disclosure control reveals `advanced` buttons in merged configuration order.
 - Every button uses the native HTML `title` attribute for its resolved command, validated URL, or disabled reason.
@@ -775,15 +769,16 @@ Tests must cover:
 - Failed Optify rebuilds retaining the previous provider without a listener event.
 - Compiling quoted Bash command strings, pipelines, redirection, and long folded YAML strings.
 - Placeholder behavior in unquoted, single-quoted, and double-quoted contexts.
-- Exact command-preview quoting, working directories, URL titles, and disabled reasons.
+- Exact command-preview quoting, URL titles, and disabled reasons.
 - Inline discovery commands and normalized item validation using checked-in fixtures.
+- Successful discovery caching, command-key changes, and TTL expiration using fake executables.
 - Generic process output, concurrency, limits, timeout, cancellation, and non-zero exit.
 - Loopback binding, host and origin checks, bootstrap authentication, and response headers.
 - Message routing, request correlation, event ordering, reconnect resynchronization, and queue bounds.
 - Autocomplete debounce, supersession, cancellation, stale-response rejection, and bounded text output.
 - UI loading, stale, empty, error, disconnected, prompt, streaming, cancellation, and button-title states.
 
-Tests use fake executables and temporary repositories.
+Tests use fake executables and temporary directories.
 They must not require network access or a real coding-agent account.
 Fixtures and helpers should cover meaningful behavior without cloning nearly identical tests for different command names.
 
@@ -819,7 +814,7 @@ Fixtures and helpers should cover meaningful behavior without cloning nearly ide
 - Every discovery command and button command is a complete inline YAML string at its point of use.
 - Pull requests and issues each render their configured `always` buttons and reveal `advanced` buttons on demand.
 - Every button's native HTML `title` contains its fully resolved command, validated URL, or disabled reason.
-- The browser cannot supply or alter an executable, argument vector, or working directory.
+- The browser cannot supply or alter an executable or argument vector.
 - Any compatible non-interactive local command works without provider-specific Rust or TypeScript changes.
 - Prompt autocomplete runs the configured command, cancels superseded work, and ignores stale results.
 - Command output streams live and can be cancelled without a provider-specific output parser.

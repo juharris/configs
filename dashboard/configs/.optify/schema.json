@@ -107,12 +107,6 @@
             "string",
             "null"
           ]
-        },
-        "working_directory": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "required": [
@@ -208,15 +202,6 @@
             }
           ]
         },
-        "repositories": {
-          "additionalProperties": {
-            "$ref": "#/$defs/RepositoryConfig"
-          },
-          "type": [
-            "object",
-            "null"
-          ]
-        },
         "sections": {
           "items": {
             "$ref": "#/$defs/SectionConfig"
@@ -245,21 +230,14 @@
       ],
       "type": "object"
     },
-    "RepositoryConfig": {
-      "additionalProperties": false,
-      "properties": {
-        "path": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "path"
-      ],
-      "type": "object"
-    },
     "SectionConfig": {
       "additionalProperties": false,
       "properties": {
+        "cache_ttl_seconds": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
         "command": {
           "type": "string"
         },
@@ -268,6 +246,11 @@
         },
         "item_kind": {
           "$ref": "#/$defs/ItemKind"
+        },
+        "items_per_page": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
         },
         "refresh_seconds": {
           "format": "uint64",
@@ -282,9 +265,11 @@
         }
       },
       "required": [
+        "cache_ttl_seconds",
         "command",
         "id",
         "item_kind",
+        "items_per_page",
         "title"
       ],
       "type": "object"

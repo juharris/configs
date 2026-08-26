@@ -1,7 +1,12 @@
 use std::sync::Arc;
 
+use crate::buttons::{ButtonError, ResolvedCommand, resolve_command};
 use crate::config::{ConfigService, ConfigServiceError};
-use crate::messages::{ClientRequest, ErrorCode, OptifySetup, ServerResponse};
+use crate::messages::{
+    ButtonList, ClientRequest, ErrorCode, ItemReference, OptifySetup, ServerResponse,
+};
+use crate::processes::{ProcessError, ProcessService};
+use crate::state::{DashboardService, DashboardServiceError};
 
 /// Applies Optify setup through the configuration service without blocking the socket task.
 pub struct ApplyOptifySetupHandler {
@@ -28,21 +33,251 @@ impl ApplyOptifySetupHandler {
 /// Routes each typed request to its focused handler.
 pub struct MessageRouter {
     apply_optify_setup: ApplyOptifySetupHandler,
+    cancel_run: CancelRunHandler,
+    preview_button: PreviewButtonHandler,
+    refresh_section: RefreshSectionHandler,
+    run_button: RunButtonHandler,
 }
 
 impl MessageRouter {
-    pub fn new(config_service: Arc<ConfigService>) -> Arc<Self> {
+    pub fn new(
+        config_service: Arc<ConfigService>,
+        dashboard_service: Arc<DashboardService>,
+        process_service: Arc<ProcessService>,
+    ) -> Arc<Self> {
+        let button_resolver = Arc::new(ButtonCommandResolver::new(
+            config_service.clone(),
+            dashboard_service.clone(),
+        ));
         Arc::new(Self {
-            apply_optify_setup: ApplyOptifySetupHandler::new(config_service),
+            apply_optify_setup: ApplyOptifySetupHandler::new(config_service.clone()),
+            cancel_run: CancelRunHandler::new(process_service.clone()),
+            preview_button: PreviewButtonHandler::new(button_resolver.clone()),
+            refresh_section: RefreshSectionHandler::new(dashboard_service.clone()),
+            run_button: RunButtonHandler::new(button_resolver, process_service),
         })
     }
 
-    pub async fn route(&self, request: ClientRequest) -> Result<ServerResponse, RequestError> {
+    pub async fn route(
+        &self,
+        connection_id: u64,
+        request: ClientRequest,
+    ) -> Result<ServerResponse, RequestError> {
         match request {
             ClientRequest::ApplyOptifySetup { setup } => {
                 self.apply_optify_setup.handle(setup).await
             }
+            ClientRequest::CancelRun { run_id } => {
+                self.cancel_run.handle(connection_id, run_id).await
+            }
+            ClientRequest::PreviewButton {
+                button_index,
+                button_list,
+                configuration_revision,
+                item,
+                prompt,
+                section_id,
+            } => {
+                self.preview_button
+                    .handle(
+                        configuration_revision,
+                        section_id,
+                        item,
+                        button_list,
+                        button_index,
+                        prompt,
+                    )
+                    .await
+            }
+            ClientRequest::RefreshSection {
+                configuration_revision,
+                section_id,
+            } => {
+                self.refresh_section
+                    .handle(configuration_revision, section_id)
+                    .await
+            }
+            ClientRequest::RunButton {
+                button_index,
+                button_list,
+                configuration_revision,
+                item,
+                prompt,
+                section_id,
+            } => {
+                self.run_button
+                    .handle(
+                        connection_id,
+                        configuration_revision,
+                        section_id,
+                        item,
+                        button_list,
+                        button_index,
+                        prompt,
+                    )
+                    .await
+            }
         }
+    }
+}
+
+pub struct CancelRunHandler {
+    process_service: Arc<ProcessService>,
+}
+
+impl CancelRunHandler {
+    pub fn new(process_service: Arc<ProcessService>) -> Self {
+        Self { process_service }
+    }
+
+    pub async fn handle(
+        &self,
+        connection_id: u64,
+        run_id: String,
+    ) -> Result<ServerResponse, RequestError> {
+        self.process_service
+            .cancel(connection_id, &run_id)
+            .map_err(RequestError::from)?;
+        Ok(ServerResponse::RunCancellationAccepted { run_id })
+    }
+}
+
+struct ButtonCommandResolver {
+    config_service: Arc<ConfigService>,
+    dashboard_service: Arc<DashboardService>,
+}
+
+impl ButtonCommandResolver {
+    fn new(config_service: Arc<ConfigService>, dashboard_service: Arc<DashboardService>) -> Self {
+        Self {
+            config_service,
+            dashboard_service,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn resolve(
+        &self,
+        configuration_revision: u64,
+        section_id: &str,
+        item: &ItemReference,
+        button_list: ButtonList,
+        button_index: usize,
+        prompt: Option<&str>,
+    ) -> Result<ResolvedCommand, RequestError> {
+        let item = self
+            .dashboard_service
+            .item(configuration_revision, section_id, item)
+            .map_err(RequestError::from)?;
+        let configuration = self
+            .config_service
+            .snapshot()
+            .map_err(RequestError::from)?
+            .ok_or_else(|| RequestError::internal("configuration is unavailable".to_owned()))?;
+        if configuration.revision != configuration_revision {
+            return Err(RequestError::from(
+                DashboardServiceError::ConfigurationChanged {
+                    active: configuration.revision,
+                    requested: configuration_revision,
+                },
+            ));
+        }
+        resolve_command(&configuration, &item, button_list, button_index, prompt)
+            .map_err(RequestError::from)
+    }
+}
+
+pub struct PreviewButtonHandler {
+    resolver: Arc<ButtonCommandResolver>,
+}
+
+impl PreviewButtonHandler {
+    fn new(resolver: Arc<ButtonCommandResolver>) -> Self {
+        Self { resolver }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn handle(
+        &self,
+        configuration_revision: u64,
+        section_id: String,
+        item: ItemReference,
+        button_list: ButtonList,
+        button_index: usize,
+        prompt: Option<String>,
+    ) -> Result<ServerResponse, RequestError> {
+        let command = self.resolver.resolve(
+            configuration_revision,
+            &section_id,
+            &item,
+            button_list,
+            button_index,
+            prompt.as_deref(),
+        )?;
+        Ok(ServerResponse::ButtonPreviewed {
+            preview: command.preview,
+        })
+    }
+}
+
+/// Queues refreshes through the dashboard state service without resolving commands in the router.
+pub struct RefreshSectionHandler {
+    dashboard_service: Arc<DashboardService>,
+}
+
+impl RefreshSectionHandler {
+    pub fn new(dashboard_service: Arc<DashboardService>) -> Self {
+        Self { dashboard_service }
+    }
+
+    pub async fn handle(
+        &self,
+        configuration_revision: u64,
+        section_id: String,
+    ) -> Result<ServerResponse, RequestError> {
+        let refresh = self
+            .dashboard_service
+            .refresh_section(configuration_revision, section_id)
+            .await
+            .map_err(RequestError::from)?;
+        Ok(ServerResponse::SectionRefreshAccepted { refresh })
+    }
+}
+
+pub struct RunButtonHandler {
+    process_service: Arc<ProcessService>,
+    resolver: Arc<ButtonCommandResolver>,
+}
+
+impl RunButtonHandler {
+    fn new(resolver: Arc<ButtonCommandResolver>, process_service: Arc<ProcessService>) -> Self {
+        Self {
+            process_service,
+            resolver,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn handle(
+        &self,
+        connection_id: u64,
+        configuration_revision: u64,
+        section_id: String,
+        item: ItemReference,
+        button_list: ButtonList,
+        button_index: usize,
+        prompt: Option<String>,
+    ) -> Result<ServerResponse, RequestError> {
+        let command = self.resolver.resolve(
+            configuration_revision,
+            &section_id,
+            &item,
+            button_list,
+            button_index,
+            prompt.as_deref(),
+        )?;
+        let run = self.process_service.start(connection_id, command);
+        Ok(ServerResponse::ButtonRunAccepted { run })
     }
 }
 
@@ -86,6 +321,60 @@ impl From<ConfigServiceError> for RequestError {
     }
 }
 
+impl From<DashboardServiceError> for RequestError {
+    fn from(error: DashboardServiceError) -> Self {
+        match error {
+            DashboardServiceError::ConfigurationChanged { .. } => Self {
+                code: ErrorCode::ConfigurationChanged,
+                field: Some("configurationRevision".to_owned()),
+                message: "The configuration changed. Refresh the dashboard and try again."
+                    .to_owned(),
+                retryable: true,
+            },
+            DashboardServiceError::InvalidSection(_) => Self {
+                code: ErrorCode::InvalidSection,
+                field: Some("sectionId".to_owned()),
+                message: "The requested dashboard section is not configured.".to_owned(),
+                retryable: false,
+            },
+            DashboardServiceError::InvalidItem => Self {
+                code: ErrorCode::InvalidItem,
+                field: Some("item".to_owned()),
+                message: "The requested dashboard item is no longer available.".to_owned(),
+                retryable: false,
+            },
+            DashboardServiceError::Lock | DashboardServiceError::Unavailable => {
+                Self::internal(error.to_string())
+            }
+        }
+    }
+}
+
+impl From<ButtonError> for RequestError {
+    fn from(error: ButtonError) -> Self {
+        Self {
+            code: ErrorCode::InvalidButton,
+            field: Some("buttonIndex".to_owned()),
+            message: error.to_string(),
+            retryable: false,
+        }
+    }
+}
+
+impl From<ProcessError> for RequestError {
+    fn from(error: ProcessError) -> Self {
+        match error {
+            ProcessError::InvalidRun => Self {
+                code: ErrorCode::InvalidRun,
+                field: Some("runId".to_owned()),
+                message: error.to_string(),
+                retryable: false,
+            },
+            ProcessError::Lock => Self::internal(error.to_string()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -93,28 +382,45 @@ mod tests {
     use super::MessageRouter;
     use crate::config::{ConfigService, RuntimeSchema};
     use crate::messages::{ClientRequest, OptifySetup, ServerResponse};
+    use crate::processes::ProcessService;
+    use crate::state::DashboardService;
 
     #[tokio::test]
     async fn routes_apply_setup_to_the_configuration_service() {
         let (config_service, _reload_service) =
             ConfigService::new(RuntimeSchema::materialize().unwrap());
-        let router = MessageRouter::new(config_service);
+        let (dashboard_service, _dashboard_runtime) = DashboardService::new(config_service.clone());
+        let connections = crate::connections::ConnectionHub::new();
+        let process_service = ProcessService::new(connections);
+        let router = MessageRouter::new(config_service, dashboard_service, process_service);
         let response = router
-            .route(ClientRequest::ApplyOptifySetup {
-                setup: OptifySetup {
-                    config_directories: vec![
-                        Path::new(env!("CARGO_MANIFEST_DIR"))
-                            .join("configs")
-                            .display()
-                            .to_string(),
-                    ],
-                    features: vec!["dashboard".to_owned()],
+            .route(
+                1,
+                ClientRequest::ApplyOptifySetup {
+                    setup: OptifySetup {
+                        config_directories: vec![
+                            Path::new(env!("CARGO_MANIFEST_DIR"))
+                                .join("configs")
+                                .display()
+                                .to_string(),
+                        ],
+                        features: vec!["dashboard".to_owned()],
+                    },
                 },
-            })
+            )
             .await
             .unwrap();
 
-        let ServerResponse::OptifySetupApplied { configuration } = response;
-        assert_eq!(configuration.revision, 1);
+        match response {
+            ServerResponse::OptifySetupApplied { configuration } => {
+                assert_eq!(configuration.revision, 1);
+            }
+            ServerResponse::ButtonPreviewed { .. }
+            | ServerResponse::ButtonRunAccepted { .. }
+            | ServerResponse::RunCancellationAccepted { .. }
+            | ServerResponse::SectionRefreshAccepted { .. } => {
+                panic!("apply setup returned a refresh response")
+            }
+        }
     }
 }

@@ -15,7 +15,7 @@ Do not put tokens, credentials, or secret fallback values in the YAML file or re
 
 ## Install and run
 
-Run commands from the existing repository working directory.
+Run commands from the existing repository directory.
 
 ```sh
 pnpm --dir dashboard install
@@ -31,7 +31,7 @@ If that port is occupied, stop the conflicting process and rerun the command rat
 On first use, open the Options page and add one or more absolute configuration-directory paths under **Optify directories**.
 For example, the first directory might contain personal configuration while the second contains private-work configuration.
 Then add the ordered root feature names under **Optify features** and select **Apply Optify configuration**.
-The browser persists only the directory `string[]` and feature `string[]` in `localStorage`; theme, sections, buttons, commands, repositories, prompts, and all other options remain in Optify files.
+The browser persists only the directory `string[]` and feature `string[]` in `localStorage`; theme, sections, buttons, commands, prompts, and all other options remain in Optify files.
 
 Every program named by an inline command must be available to the process that starts the server.
 Missing executables, required environment variables, authentication, and configuration values must produce clear failures rather than implicit fallbacks.
@@ -44,7 +44,7 @@ gh auth status
 
 ## Configuration files
 
-Edit YAML, YML, or JSON feature files in any directory selected on the Options page to change the theme, sections, discovery commands, repository paths, prompt autocomplete, and pull request or issue buttons.
+Edit YAML, YML, or JSON feature files in any directory selected on the Options page to change the theme, sections, discovery commands, prompt autocomplete, and pull request or issue buttons.
 Optify discovers supported files recursively in every selected directory.
 Keep a root feature small and use it to import focused features that each own one area of configuration.
 Each focused file should normally be imported by one root feature so its ownership and path are obvious.
@@ -59,7 +59,6 @@ dashboard/configs/
     application.yaml
     autocomplete.yaml
     buttons.yaml
-    repositories.yaml
     sections.yaml
 ```
 
@@ -71,7 +70,6 @@ imports:
   - dashboard/application
   - dashboard/autocomplete
   - dashboard/buttons
-  - dashboard/repositories
   - dashboard/sections
 ```
 
@@ -97,14 +95,21 @@ Command values are YAML strings and should remain next to the feature that runs 
 Use YAML's folded block style for long commands:
 
 ```yaml
+cache_ttl_seconds: 300
 command: >-
   gh search prs
-  "author:@me state:open"
+  --author @me
+  --state open
   --json number,repository,state,title,updatedAt,url
 ```
 
+The positive `cache_ttl_seconds` value caches successful normalized results for that complete discovery command.
+Changing one command invalidates only that command's cache entry; failures are never cached.
+
 Do not introduce a named command registry merely to deduplicate similar strings.
 Keeping a complete command at its point of use makes personal configuration easier to read and change.
+Use ordinary shell commands such as `cd` directly in the command string when an action should start from a particular directory.
+The dashboard does not require or inspect a local checkout before enabling an action.
 
 ## Schema and live reload
 

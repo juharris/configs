@@ -1,12 +1,19 @@
 import type {
   ActiveConfiguration,
   BootstrapResponse,
+  ButtonList,
   ClientMessage,
+  ClientRequest,
+  DashboardSnapshot,
+  ItemReference,
   OptifySetup,
+  RunSnapshot,
+  SectionRefresh,
   ServerMessage,
+  ServerResponse,
 } from "./generated/transport";
 
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 2;
 const RECONNECT_DELAYS = [250, 500, 1_000, 2_000, 5_000] as const;
 const REQUEST_TIMEOUT = 10_000;
 
@@ -15,14 +22,16 @@ export type ConnectionStatus =
 
 type PendingRequest = {
   reject: (error: Error) => void;
-  resolve: (configuration: ActiveConfiguration) => void;
+  resolve: (response: ServerResponse) => void;
   timeout: number;
 };
 
 type WebSocketClientOptions = {
   getSetup: () => OptifySetup | null;
   onConfiguration: (configuration: ActiveConfiguration) => void;
+  onDashboard: (dashboard: DashboardSnapshot) => void;
   onError: (message: string) => void;
+  onRun: (run: RunSnapshot) => void;
   onStatus: (status: ConnectionStatus) => void;
 };
 
@@ -30,7 +39,9 @@ type WebSocketClientOptions = {
 export class WebSocketClient {
   readonly #getSetup: () => OptifySetup | null;
   readonly #onConfiguration: (configuration: ActiveConfiguration) => void;
+  readonly #onDashboard: (dashboard: DashboardSnapshot) => void;
   readonly #onError: (message: string) => void;
+  readonly #onRun: (run: RunSnapshot) => void;
   readonly #onStatus: (status: ConnectionStatus) => void;
   readonly #pending = new Map<string, PendingRequest>();
   #active = false;
@@ -45,11 +56,106 @@ export class WebSocketClient {
   constructor(options: WebSocketClientOptions) {
     this.#getSetup = options.getSetup;
     this.#onConfiguration = options.onConfiguration;
+    this.#onDashboard = options.onDashboard;
     this.#onError = options.onError;
+    this.#onRun = options.onRun;
     this.#onStatus = options.onStatus;
   }
 
   applySetup(setup: OptifySetup): Promise<ActiveConfiguration> {
+    return this.#sendRequest({ setup, type: "apply_optify_setup" }).then(
+      (response) => {
+        if (response.type !== "optify_setup_applied") {
+          throw new Error(
+            "The dashboard service returned an unexpected response.",
+          );
+        }
+        return response.configuration;
+      },
+    );
+  }
+
+  cancelRun(runId: string): Promise<void> {
+    return this.#sendRequest({ runId, type: "cancel_run" }).then((response) => {
+      if (response.type !== "run_cancellation_accepted") {
+        throw new Error(
+          "The dashboard service returned an unexpected response.",
+        );
+      }
+    });
+  }
+
+  previewButton(
+    buttonIndex: number,
+    buttonList: ButtonList,
+    configurationRevision: number,
+    item: ItemReference,
+    prompt: string | null,
+    sectionId: string,
+  ): Promise<string> {
+    return this.#sendRequest({
+      buttonIndex,
+      buttonList,
+      configurationRevision,
+      item,
+      prompt,
+      sectionId,
+      type: "preview_button",
+    }).then((response) => {
+      if (response.type !== "button_previewed") {
+        throw new Error(
+          "The dashboard service returned an unexpected response.",
+        );
+      }
+      return response.preview;
+    });
+  }
+
+  refreshSection(
+    configurationRevision: number,
+    sectionId: string,
+  ): Promise<SectionRefresh> {
+    return this.#sendRequest({
+      configurationRevision,
+      sectionId,
+      type: "refresh_section",
+    }).then((response) => {
+      if (response.type !== "section_refresh_accepted") {
+        throw new Error(
+          "The dashboard service returned an unexpected response.",
+        );
+      }
+      return response.refresh;
+    });
+  }
+
+  runButton(
+    buttonIndex: number,
+    buttonList: ButtonList,
+    configurationRevision: number,
+    item: ItemReference,
+    prompt: string | null,
+    sectionId: string,
+  ): Promise<RunSnapshot> {
+    return this.#sendRequest({
+      buttonIndex,
+      buttonList,
+      configurationRevision,
+      item,
+      prompt,
+      sectionId,
+      type: "run_button",
+    }).then((response) => {
+      if (response.type !== "button_run_accepted") {
+        throw new Error(
+          "The dashboard service returned an unexpected response.",
+        );
+      }
+      return response.run;
+    });
+  }
+
+  #sendRequest(request: ClientRequest): Promise<ServerResponse> {
     if (
       !this.#ready ||
       this.#socket === null ||
@@ -61,7 +167,7 @@ export class WebSocketClient {
     }
     const requestId = `request-${(++this.#requestSequence).toString()}`;
     const message: ClientMessage = {
-      request: { setup, type: "apply_optify_setup" },
+      request,
       requestId,
       type: "request",
     };
@@ -198,6 +304,9 @@ export class WebSocketClient {
         );
         this.#ready = true;
         this.#onStatus("connected");
+        if (message.dashboard !== null) {
+          this.#onDashboard(message.dashboard);
+        }
         this.#synchronizeSetup(message.activeConfiguration);
         return;
       case "error": {
@@ -226,8 +335,16 @@ export class WebSocketClient {
           return;
         }
         this.#lastEventSequence = message.sequence;
-        if (message.event.type === "configuration_reloaded") {
-          this.#onConfiguration(message.event.configuration);
+        switch (message.event.type) {
+          case "configuration_reloaded":
+            this.#onConfiguration(message.event.configuration);
+            break;
+          case "dashboard_updated":
+            this.#onDashboard(message.event.dashboard);
+            break;
+          case "run_updated":
+            this.#onRun(message.event.run);
+            break;
         }
         return;
       case "response": {
@@ -237,9 +354,7 @@ export class WebSocketClient {
         }
         window.clearTimeout(pending.timeout);
         this.#pending.delete(message.requestId);
-        if (message.response.type === "optify_setup_applied") {
-          pending.resolve(message.response.configuration);
-        }
+        pending.resolve(message.response);
       }
     }
   }

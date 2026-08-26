@@ -486,7 +486,6 @@ mod tests {
     struct ConfigFixture {
         base: TempDir,
         override_directory: TempDir,
-        repository: TempDir,
     }
 
     impl ConfigFixture {
@@ -494,13 +493,8 @@ mod tests {
             let fixture = Self {
                 base: workspace_tempdir(),
                 override_directory: workspace_tempdir(),
-                repository: workspace_tempdir(),
             };
-            fs::write(
-                fixture.base.path().join("base.yaml"),
-                base_configuration(fixture.repository.path()),
-            )
-            .unwrap();
+            fs::write(fixture.base.path().join("base.yaml"), base_configuration()).unwrap();
             fixture.write_override("dark", "overridden_items");
             fixture
         }
@@ -519,7 +513,7 @@ mod tests {
             fs::write(
                 self.override_directory.path().join("override.yaml"),
                 format!(
-                    "options:\n  appearance:\n    theme: {theme}\n  sections:\n    - command: printf '[]'\n      id: {section_id}\n      item_kind: issue\n      title: Items\n"
+                    "options:\n  appearance:\n    theme: {theme}\n  sections:\n    - cache_ttl_seconds: 300\n      command: printf '[]'\n      id: {section_id}\n      item_kind: issue\n      items_per_page: 6\n      title: Items\n"
                 ),
             )
             .unwrap();
@@ -528,17 +522,14 @@ mod tests {
         fn write_invalid_template_override(&self) {
             fs::write(
                 self.override_directory.path().join("override.yaml"),
-                "options:\n  appearance:\n    theme: dark\n  sections:\n    - command: \"printf '\"\n      id: invalid_items\n      item_kind: issue\n      title: Items\n",
+                "options:\n  appearance:\n    theme: dark\n  sections:\n    - cache_ttl_seconds: 300\n      command: \"printf '\"\n      id: invalid_items\n      item_kind: issue\n      items_per_page: 6\n      title: Items\n",
             )
             .unwrap();
         }
     }
 
-    fn base_configuration(repository: &Path) -> String {
-        format!(
-            "options:\n  appearance:\n    theme: system\n  application:\n    command_timeout_seconds: 30\n    default_refresh_seconds: 60\n    max_concurrent_commands: 2\n    max_output_bytes_per_run: 4096\n    shell: /bin/bash\n  autocomplete:\n    command: printf '%s' '{{autocomplete.request}}'\n    debounce_milliseconds: 100\n    instruction: Suggest a useful edit.\n    minimum_characters: 2\n  buttons:\n    issues:\n      advanced: []\n      always: []\n    pull_requests:\n      advanced: []\n      always: []\n  repositories:\n    owner/repository:\n      path: {}\n  sections:\n    - command: printf '[]'\n      id: base_items\n      item_kind: issue\n      title: Items\n",
-            repository.display()
-        )
+    fn base_configuration() -> &'static str {
+        "options:\n  appearance:\n    theme: system\n  application:\n    command_timeout_seconds: 30\n    default_refresh_seconds: 60\n    max_concurrent_commands: 2\n    max_output_bytes_per_run: 4096\n    shell: /bin/bash\n  autocomplete:\n    command: printf '%s' '{autocomplete.request}'\n    debounce_milliseconds: 100\n    instruction: Suggest a useful edit.\n    minimum_characters: 2\n  buttons:\n    issues:\n      advanced: []\n      always: []\n    pull_requests:\n      advanced: []\n      always: []\n  sections:\n    - cache_ttl_seconds: 300\n      command: printf '[]'\n      id: base_items\n      item_kind: issue\n      items_per_page: 6\n      title: Items\n"
     }
 
     fn workspace_tempdir() -> TempDir {

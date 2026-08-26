@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -12,7 +12,6 @@ use crate::commands::{CommandTemplate, Placeholder, PlainTemplate, TemplateError
 pub struct ValidatedButton {
     pub command: Option<CommandTemplate>,
     pub url: Option<PlainTemplate>,
-    pub working_directory: Option<PlainTemplate>,
 }
 
 #[derive(Clone, Debug)]
@@ -27,13 +26,17 @@ pub struct ValidatedRootConfig {
     pub issue_buttons: ValidatedButtonLists,
     pub pull_request_buttons: ValidatedButtonLists,
     pub root: Arc<RootConfig>,
-    pub sections: Vec<CommandTemplate>,
+    pub sections: Vec<ValidatedSection>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ValidatedSection {
+    pub command: CommandTemplate,
 }
 
 impl ValidatedRootConfig {
     pub fn validate(root: RootConfig) -> Result<Self, ConfigError> {
         validate_application(&root)?;
-        validate_repositories(&root)?;
 
         let shell = Path::new(&root.application.shell);
         let autocomplete = CommandTemplate::compile(
@@ -169,10 +172,10 @@ fn validate_button(
     }
 
     if let Some(url) = &button.url {
-        if button.confirm || button.prompt.is_some() || button.working_directory.is_some() {
+        if button.confirm || button.prompt.is_some() {
             return Err(ConfigError::field(
                 field,
-                "confirm, prompt, and working_directory are available only for command buttons",
+                "confirm and prompt are available only for command buttons",
             ));
         }
         let template = PlainTemplate::compile(url.clone(), &Placeholder::item())
@@ -184,7 +187,6 @@ fn validate_button(
         return Ok(ValidatedButton {
             command: None,
             url: Some(template),
-            working_directory: None,
         });
     }
 
@@ -211,22 +213,9 @@ fn validate_button(
         require_nonblank(&format!("{field}.prompt.label"), &prompt.label)?;
         require_nonblank(&format!("{field}.prompt.placeholder"), &prompt.placeholder)?;
     }
-    let working_directory = button
-        .working_directory
-        .as_ref()
-        .map(|template| {
-            PlainTemplate::compile(
-                template.clone(),
-                &HashSet::from([Placeholder::RepositoryPath]),
-            )
-            .map_err(|error| ConfigError::field(format!("{field}.working_directory"), error))
-        })
-        .transpose()?;
-
     Ok(ValidatedButton {
         command: Some(command),
         url: None,
-        working_directory,
     })
 }
 
@@ -254,28 +243,10 @@ fn validate_button_lists(
     })
 }
 
-fn validate_repositories(root: &RootConfig) -> Result<(), ConfigError> {
-    for (repository, config) in &root.repositories {
-        let field = format!("repositories.{repository}.path");
-        let mut parts = repository.split('/');
-        if parts.next().is_none_or(str::is_empty)
-            || parts.next().is_none_or(str::is_empty)
-            || parts.next().is_some()
-        {
-            return Err(ConfigError::field(
-                format!("repositories.{repository}"),
-                "repository key must have the owner/name form",
-            ));
-        }
-        let path = PathBuf::from(&config.path);
-        if !path.is_absolute() {
-            return Err(ConfigError::field(field, "must be an absolute path"));
-        }
-    }
-    Ok(())
-}
-
-fn validate_sections(root: &RootConfig, shell: &Path) -> Result<Vec<CommandTemplate>, ConfigError> {
+fn validate_sections(
+    root: &RootConfig,
+    shell: &Path,
+) -> Result<Vec<ValidatedSection>, ConfigError> {
     let mut ids = HashSet::new();
     root.sections
         .iter()
@@ -290,18 +261,31 @@ fn validate_sections(root: &RootConfig, shell: &Path) -> Result<Vec<CommandTempl
                     format!("duplicate section ID {}", section.id),
                 ));
             }
+            if section.cache_ttl_seconds == 0 {
+                return Err(ConfigError::field(
+                    format!("{field}.cache_ttl_seconds"),
+                    "must be greater than zero",
+                ));
+            }
             if section.refresh_seconds == Some(0) {
                 return Err(ConfigError::field(
                     format!("{field}.refresh_seconds"),
                     "must be greater than zero",
                 ));
             }
-            CommandTemplate::compile(section.command.clone(), &HashSet::new())
+            if section.items_per_page == 0 {
+                return Err(ConfigError::field(
+                    format!("{field}.items_per_page"),
+                    "must be greater than zero",
+                ));
+            }
+            let command = CommandTemplate::compile(section.command.clone(), &HashSet::new())
                 .and_then(|template| {
                     template.validate_bash_syntax(shell)?;
                     Ok(template)
                 })
-                .map_err(|error| ConfigError::field(format!("{field}.command"), error))
+                .map_err(|error| ConfigError::field(format!("{field}.command"), error))?;
+            Ok(ValidatedSection { command })
         })
         .collect()
 }

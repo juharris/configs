@@ -6,10 +6,12 @@ use serde_json::{Value, json};
 use thiserror::Error;
 use ts_rs::TS;
 
-use crate::config::DashboardFeatureFile;
+use crate::config::{DashboardFeatureFile, ItemKind};
 use crate::messages::{
-    ActiveConfiguration, BootstrapResponse, ClientMessage, ClientRequest, ErrorCode, OptifySetup,
-    ServerEvent, ServerMessage, ServerResponse, SetupStatus, Theme,
+    ActiveConfiguration, BootstrapResponse, ButtonList, ClientMessage, ClientRequest,
+    DashboardButton, DashboardItem, DashboardLabel, DashboardSnapshot, ErrorCode, ItemReference,
+    OptifySetup, PromptPresentation, RunSnapshot, RunStatus, SectionRefresh, SectionRefreshStatus,
+    SectionSnapshot, ServerEvent, ServerMessage, ServerResponse, SetupStatus, Theme,
 };
 
 const OPTIFY_FEATURE_SCHEMA: &str =
@@ -53,10 +55,23 @@ pub fn transport_bindings() -> String {
     let declarations = [
         ActiveConfiguration::decl(),
         BootstrapResponse::decl(),
+        ButtonList::decl(),
         ClientMessage::decl(),
         ClientRequest::decl(),
+        DashboardButton::decl(),
+        DashboardItem::decl(),
+        DashboardLabel::decl(),
+        DashboardSnapshot::decl(),
         ErrorCode::decl(),
+        ItemReference::decl(),
+        ItemKind::decl(),
         OptifySetup::decl(),
+        PromptPresentation::decl(),
+        RunSnapshot::decl(),
+        RunStatus::decl(),
+        SectionRefresh::decl(),
+        SectionRefreshStatus::decl(),
+        SectionSnapshot::decl(),
         ServerEvent::decl(),
         ServerMessage::decl(),
         ServerResponse::decl(),

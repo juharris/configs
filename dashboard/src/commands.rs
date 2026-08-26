@@ -6,6 +6,8 @@ use std::process::Stdio;
 use thiserror::Error;
 use url::Url;
 
+use crate::messages::DashboardItem;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommandTemplate {
     placeholders: Vec<Placeholder>,
@@ -17,6 +19,44 @@ pub struct CommandTemplate {
 pub struct PlainTemplate {
     placeholders: Vec<Placeholder>,
     source: String,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct TemplateValues {
+    autocomplete_request: Option<String>,
+    item_number: Option<String>,
+    item_repository: Option<String>,
+    item_url: Option<String>,
+    prompt: Option<String>,
+}
+
+impl TemplateValues {
+    pub fn for_item(item: &DashboardItem) -> Self {
+        Self {
+            item_number: Some(item.number.to_string()),
+            item_repository: Some(item.repository.clone()),
+            item_url: Some(item.url.clone()),
+            ..Self::default()
+        }
+    }
+
+    pub fn with_prompt(mut self, prompt: Option<&str>) -> Self {
+        self.prompt = prompt.map(str::to_owned);
+        self
+    }
+
+    fn value(&self, placeholder: Placeholder) -> Result<&str, TemplateError> {
+        let value = match placeholder {
+            Placeholder::AutocompleteRequest => self.autocomplete_request.as_deref(),
+            Placeholder::ItemNumber => self.item_number.as_deref(),
+            Placeholder::ItemRepository => self.item_repository.as_deref(),
+            Placeholder::ItemUrl => self.item_url.as_deref(),
+            Placeholder::Prompt => self.prompt.as_deref(),
+        };
+        value.ok_or_else(|| TemplateError::UnavailableValue {
+            placeholder: placeholder.to_string(),
+        })
+    }
 }
 
 impl PlainTemplate {
@@ -43,6 +83,24 @@ impl PlainTemplate {
         &self.source
     }
 
+    pub fn resolve_https_url(&self, values: &TemplateValues) -> Result<String, TemplateError> {
+        let resolved = self.resolve(values)?;
+        validate_https_url_value(&resolved)?;
+        Ok(resolved)
+    }
+
+    pub fn resolve(&self, values: &TemplateValues) -> Result<String, TemplateError> {
+        let mut resolved = self.source.clone();
+        for placeholder in &self.placeholders {
+            resolved = resolved.replacen(
+                &format!("{{{placeholder}}}"),
+                values.value(*placeholder)?,
+                1,
+            );
+        }
+        Ok(resolved)
+    }
+
     pub fn validate_https_url(&self) -> Result<(), TemplateError> {
         let mut resolved = self.source.clone();
         for placeholder in &self.placeholders {
@@ -52,13 +110,7 @@ impl PlainTemplate {
                 1,
             );
         }
-        let url = Url::parse(&resolved).map_err(|source| TemplateError::InvalidUrl { source })?;
-        if url.scheme() != "https" {
-            return Err(TemplateError::InvalidUrlScheme {
-                scheme: url.scheme().to_owned(),
-            });
-        }
-        Ok(())
+        validate_https_url_value(&resolved)
     }
 }
 
@@ -86,6 +138,17 @@ impl CommandTemplate {
 
     pub fn placeholders(&self) -> &[Placeholder] {
         &self.placeholders
+    }
+
+    pub fn preview(&self, values: &TemplateValues) -> Result<String, TemplateError> {
+        render_preview(&self.source, &self.placeholders, values)
+    }
+
+    pub fn resolve_arguments(&self, values: &TemplateValues) -> Result<Vec<String>, TemplateError> {
+        self.placeholders
+            .iter()
+            .map(|placeholder| values.value(*placeholder).map(str::to_owned))
+            .collect()
     }
 
     pub fn script(&self) -> &str {
@@ -124,7 +187,6 @@ pub enum Placeholder {
     ItemRepository,
     ItemUrl,
     Prompt,
-    RepositoryPath,
 }
 
 impl Placeholder {
@@ -138,17 +200,11 @@ impl Placeholder {
             Self::ItemRepository,
             Self::ItemUrl,
             Self::Prompt,
-            Self::RepositoryPath,
         ])
     }
 
     pub fn item() -> HashSet<Self> {
-        HashSet::from([
-            Self::ItemNumber,
-            Self::ItemRepository,
-            Self::ItemUrl,
-            Self::RepositoryPath,
-        ])
+        HashSet::from([Self::ItemNumber, Self::ItemRepository, Self::ItemUrl])
     }
 
     fn parse(value: &str) -> Option<Self> {
@@ -158,7 +214,6 @@ impl Placeholder {
             "item.repository" => Some(Self::ItemRepository),
             "item.url" => Some(Self::ItemUrl),
             "prompt" => Some(Self::Prompt),
-            "repository.path" => Some(Self::RepositoryPath),
             _ => None,
         }
     }
@@ -170,7 +225,6 @@ impl Placeholder {
             Self::ItemRepository => "owner/repository",
             Self::ItemUrl => "https://github.com/owner/repository/issues/1",
             Self::Prompt => "prompt",
-            Self::RepositoryPath => "/tmp/repository",
         }
     }
 }
@@ -183,7 +237,6 @@ impl Display for Placeholder {
             Self::ItemRepository => "item.repository",
             Self::ItemUrl => "item.url",
             Self::Prompt => "prompt",
-            Self::RepositoryPath => "repository.path",
         })
     }
 }
@@ -211,8 +264,20 @@ pub enum TemplateError {
     },
     #[error("placeholder {{{placeholder}}} is not available in this context")]
     UnavailablePlaceholder { placeholder: String },
+    #[error("placeholder {{{placeholder}}} has no value for this item")]
+    UnavailableValue { placeholder: String },
     #[error("unknown placeholder {{{placeholder}}}")]
     UnknownPlaceholder { placeholder: String },
+}
+
+fn validate_https_url_value(value: &str) -> Result<(), TemplateError> {
+    let url = Url::parse(value).map_err(|source| TemplateError::InvalidUrl { source })?;
+    if url.scheme() != "https" {
+        return Err(TemplateError::InvalidUrlScheme {
+            scheme: url.scheme().to_owned(),
+        });
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -318,6 +383,99 @@ fn compile_template(
     }
 
     Ok((compiled, placeholders))
+}
+
+fn render_preview(
+    source: &str,
+    placeholders: &[Placeholder],
+    values: &TemplateValues,
+) -> Result<String, TemplateError> {
+    let mut rendered = String::with_capacity(source.len());
+    let mut characters = source.char_indices().peekable();
+    let mut escaped = false;
+    let mut parameter_expansion_depth = 0_u32;
+    let mut placeholder_index = 0;
+    let mut quote = Quote::Unquoted;
+
+    while let Some((offset, character)) = characters.next() {
+        if escaped {
+            rendered.push(character);
+            escaped = false;
+            continue;
+        }
+        if character == '\\' && quote != Quote::Single {
+            rendered.push(character);
+            escaped = true;
+            continue;
+        }
+        match character {
+            '\'' if quote != Quote::Double => {
+                quote = if quote == Quote::Single {
+                    Quote::Unquoted
+                } else {
+                    Quote::Single
+                };
+                rendered.push(character);
+            }
+            '"' if quote != Quote::Single => {
+                quote = if quote == Quote::Double {
+                    Quote::Unquoted
+                } else {
+                    Quote::Double
+                };
+                rendered.push(character);
+            }
+            '{' if rendered.ends_with('$') || parameter_expansion_depth > 0 => {
+                parameter_expansion_depth += 1;
+                rendered.push(character);
+            }
+            '}' if parameter_expansion_depth > 0 => {
+                parameter_expansion_depth -= 1;
+                rendered.push(character);
+            }
+            '{' => {
+                let placeholder_end = characters
+                    .clone()
+                    .find_map(|(next_offset, next_character)| {
+                        (next_character == '}').then_some(next_offset)
+                    })
+                    .ok_or(TemplateError::MalformedPlaceholder { offset })?;
+                let placeholder_name = &source[offset + 1..placeholder_end];
+                if !is_placeholder_name(placeholder_name) {
+                    rendered.push(character);
+                    continue;
+                }
+                while characters
+                    .peek()
+                    .is_some_and(|(next_offset, _)| *next_offset <= placeholder_end)
+                {
+                    characters.next();
+                }
+                let placeholder = placeholders[placeholder_index];
+                placeholder_index += 1;
+                let value = values.value(placeholder)?;
+                match quote {
+                    Quote::Double => rendered.push_str(&escape_double_quoted(value)),
+                    Quote::Single => rendered.push_str(&value.replace('\'', "'\\''")),
+                    Quote::Unquoted => rendered.push_str(&shell_quote(value)),
+                }
+            }
+            _ => rendered.push(character),
+        }
+    }
+    Ok(rendered)
+}
+
+fn escape_double_quoted(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('$', "\\$")
+        .replace('`', "\\`")
+        .replace('"', "\\\"")
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
 }
 
 fn is_placeholder_name(value: &str) -> bool {

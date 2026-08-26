@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { ActiveConfiguration, OptifySetup } from "./generated/transport";
+import type {
+  ActiveConfiguration,
+  DashboardSnapshot,
+  OptifySetup,
+} from "./generated/transport";
 import { WebSocketClient } from "./WebSocketClient";
 
 const setup: OptifySetup = {
@@ -12,6 +16,11 @@ const configuration: ActiveConfiguration = {
   revision: 3,
   setup,
   theme: "dark",
+};
+
+const dashboard: DashboardSnapshot = {
+  configurationRevision: 3,
+  sections: [],
 };
 
 describe("WebSocketClient", () => {
@@ -29,7 +38,9 @@ describe("WebSocketClient", () => {
     const client = new WebSocketClient({
       getSetup: () => null,
       onConfiguration,
+      onDashboard: vi.fn(),
       onError: vi.fn(),
+      onRun: vi.fn(),
       onStatus,
     });
 
@@ -39,15 +50,16 @@ describe("WebSocketClient", () => {
     socket.open();
     expect(JSON.parse(socket.sent[0])).toEqual({
       lastEventSequence: null,
-      protocolVersion: 1,
+      protocolVersion: 2,
       token: "token-1",
       type: "authenticate",
     });
     socket.receive({
       activeConfiguration: null,
       connectionId: "connection-1",
+      dashboard: null,
       eventSequence: 0,
-      protocolVersion: 1,
+      protocolVersion: 2,
       setupStatus: "required",
       type: "connection_ready",
     });
@@ -64,6 +76,77 @@ describe("WebSocketClient", () => {
     });
 
     await expect(applied).resolves.toEqual(configuration);
+
+    const refreshed = client.refreshSection(3, "requested_reviews");
+    const refreshRequest = JSON.parse(socket.sent[2]) as { requestId: string };
+    socket.receive({
+      requestId: refreshRequest.requestId,
+      response: {
+        refresh: {
+          coalesced: false,
+          sectionId: "requested_reviews",
+          status: "refreshing",
+        },
+        type: "section_refresh_accepted",
+      },
+      type: "response",
+    });
+    await expect(refreshed).resolves.toEqual({
+      coalesced: false,
+      sectionId: "requested_reviews",
+      status: "refreshing",
+    });
+
+    const run = {
+      exitCode: null,
+      id: "run-1",
+      label: "Review",
+      output: "",
+      preview: "codex exec '/review https://example.test/pull/42'",
+      status: "queued" as const,
+    };
+    const previewed = client.previewButton(
+      0,
+      "always",
+      3,
+      { number: 42, repository: "shop/world", source: "github" },
+      "focus on tests",
+      "requested_reviews",
+    );
+    const previewRequest = JSON.parse(socket.sent[3]) as {
+      requestId: string;
+    };
+    socket.receive({
+      requestId: previewRequest.requestId,
+      response: { preview: run.preview, type: "button_previewed" },
+      type: "response",
+    });
+    await expect(previewed).resolves.toBe(run.preview);
+
+    const started = client.runButton(
+      0,
+      "always",
+      3,
+      { number: 42, repository: "shop/world", source: "github" },
+      "focus on tests",
+      "requested_reviews",
+    );
+    const runRequest = JSON.parse(socket.sent[4]) as { requestId: string };
+    socket.receive({
+      requestId: runRequest.requestId,
+      response: { run, type: "button_run_accepted" },
+      type: "response",
+    });
+    await expect(started).resolves.toEqual(run);
+
+    const cancelled = client.cancelRun("run-1");
+    const cancelRequest = JSON.parse(socket.sent[5]) as { requestId: string };
+    socket.receive({
+      requestId: cancelRequest.requestId,
+      response: { runId: "run-1", type: "run_cancellation_accepted" },
+      type: "response",
+    });
+    await expect(cancelled).resolves.toBeUndefined();
     expect(onConfiguration).not.toHaveBeenCalled();
     expect(onStatus).toHaveBeenCalledWith("connected");
     client.stop();
@@ -73,10 +156,14 @@ describe("WebSocketClient", () => {
     stubBootstrap("token-2");
     vi.stubGlobal("WebSocket", FakeWebSocket);
     const onConfiguration = vi.fn();
+    const onDashboard = vi.fn();
+    const onRun = vi.fn();
     const client = new WebSocketClient({
       getSetup: () => setup,
       onConfiguration,
+      onDashboard,
       onError: vi.fn(),
+      onRun,
       onStatus: vi.fn(),
     });
 
@@ -87,8 +174,9 @@ describe("WebSocketClient", () => {
     socket.receive({
       activeConfiguration: null,
       connectionId: "connection-1",
+      dashboard,
       eventSequence: 0,
-      protocolVersion: 1,
+      protocolVersion: 2,
       setupStatus: "required",
       type: "connection_ready",
     });
@@ -104,6 +192,7 @@ describe("WebSocketClient", () => {
     await vi.waitFor(() =>
       expect(onConfiguration).toHaveBeenCalledWith(configuration),
     );
+    expect(onDashboard).toHaveBeenCalledWith(dashboard);
 
     const reloaded = { ...configuration, revision: 4 };
     socket.receive({
@@ -113,6 +202,31 @@ describe("WebSocketClient", () => {
       type: "event",
     });
     expect(onConfiguration).toHaveBeenLastCalledWith(reloaded);
+
+    const updatedDashboard = { ...dashboard, configurationRevision: 4 };
+    socket.receive({
+      event: { dashboard: updatedDashboard, type: "dashboard_updated" },
+      eventId: "event-2",
+      sequence: 2,
+      type: "event",
+    });
+    expect(onDashboard).toHaveBeenLastCalledWith(updatedDashboard);
+
+    const run = {
+      exitCode: 0,
+      id: "run-1",
+      label: "Review",
+      output: "Done",
+      preview: "codex exec review",
+      status: "completed" as const,
+    };
+    socket.receive({
+      event: { run, type: "run_updated" },
+      eventId: "event-3",
+      sequence: 3,
+      type: "event",
+    });
+    expect(onRun).toHaveBeenCalledWith(run);
     client.stop();
   });
 });
@@ -168,7 +282,7 @@ function stubBootstrap(token: string) {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ protocolVersion: 1, token }),
+      json: vi.fn().mockResolvedValue({ protocolVersion: 2, token }),
       ok: true,
       status: 200,
     }),

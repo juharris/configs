@@ -13,8 +13,10 @@ use tower_http::trace::TraceLayer;
 use crate::config::ConfigService;
 use crate::connections::{BootstrapTokenStore, ConnectionHub};
 use crate::messages::{BootstrapResponse, PROTOCOL_VERSION};
+use crate::processes::ProcessService;
 use crate::router::MessageRouter;
 use crate::session::{self, SessionServices};
+use crate::state::DashboardService;
 
 pub const DEVELOPMENT_BACKEND_PORT: u16 = 3000;
 pub const PUBLIC_PORT: u16 = 5173;
@@ -67,7 +69,9 @@ pub async fn serve(
             "could not bind Personal Dashboard to http://{address}; stop the process using port {port} and try again: {error}"
         )
     })?;
-    let application = application(config_service);
+    let (dashboard_service, dashboard_runtime) = DashboardService::new(config_service.clone());
+    tokio::spawn(dashboard_runtime.run());
+    let application = application(config_service, dashboard_service);
     let url = format!("http://{address}");
     tracing::info!(%url, "Personal Dashboard is ready");
 
@@ -81,18 +85,28 @@ pub async fn serve(
     Ok(())
 }
 
-fn application(config_service: Arc<ConfigService>) -> Router {
+fn application(
+    config_service: Arc<ConfigService>,
+    dashboard_service: Arc<DashboardService>,
+) -> Router {
     let connections = ConnectionHub::new();
+    let process_service = ProcessService::new(connections.clone());
     tokio::spawn(
         connections
             .clone()
             .publish_config_events(config_service.subscribe()),
     );
+    tokio::spawn(
+        connections
+            .clone()
+            .publish_dashboard_events(dashboard_service.subscribe()),
+    );
     application_with_state(ApplicationState {
         sessions: SessionServices {
             config_service: config_service.clone(),
             connections,
-            router: MessageRouter::new(config_service),
+            dashboard_service: dashboard_service.clone(),
+            router: MessageRouter::new(config_service, dashboard_service, process_service),
             tokens: Arc::new(BootstrapTokenStore::new()),
         },
     })

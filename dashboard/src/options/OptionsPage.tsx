@@ -108,6 +108,11 @@ export function OptionsPage({
             <span className="connection-status" data-status={connectionStatus}>
               {connectionStatusLabel(connectionStatus)}
             </span>
+            {acceptedSetup === null ? null : (
+              <a className="utility-link" href="/">
+                Dashboard
+              </a>
+            )}
             <div className="messages" aria-live="polite">
               {connectionError === null ? null : <p>{connectionError}</p>}
               {messages.map((message) => (

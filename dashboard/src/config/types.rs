@@ -1,7 +1,6 @@
-use std::collections::BTreeMap;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::messages::Theme;
 
@@ -39,7 +38,6 @@ pub struct ButtonConfig {
     pub label: String,
     pub prompt: Option<PromptConfig>,
     pub url: Option<String>,
-    pub working_directory: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]
@@ -64,8 +62,9 @@ pub struct DashboardFeatureFile {
     pub options: Option<PartialRootConfig>,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, JsonSchema, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, JsonSchema, PartialEq, Serialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
 pub enum ItemKind {
     Issue,
     PullRequest,
@@ -78,7 +77,6 @@ pub struct PartialRootConfig {
     pub application: Option<ApplicationConfig>,
     pub autocomplete: Option<AutocompleteConfig>,
     pub buttons: Option<ButtonsConfig>,
-    pub repositories: Option<BTreeMap<String, RepositoryConfig>>,
     pub sections: Option<Vec<SectionConfig>>,
 }
 
@@ -91,27 +89,22 @@ pub struct PromptConfig {
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct RepositoryConfig {
-    pub path: String,
-}
-
-#[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct RootConfig {
     pub appearance: AppearanceConfig,
     pub application: ApplicationConfig,
     pub autocomplete: AutocompleteConfig,
     pub buttons: ButtonsConfig,
-    pub repositories: BTreeMap<String, RepositoryConfig>,
     pub sections: Vec<SectionConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SectionConfig {
+    pub cache_ttl_seconds: u64,
     pub command: String,
     pub id: String,
     pub item_kind: ItemKind,
+    pub items_per_page: usize,
     pub refresh_seconds: Option<u64>,
     pub title: String,
 }

@@ -1,0 +1,5 @@
+{
+	"$schema": "https://raw.githubusercontent.com/juharris/optify/refs/heads/main/schemas/optify_config.json",
+	"root": true,
+	"areConfigurableValuesEnabled": true
+}

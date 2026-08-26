@@ -1,0 +1,41 @@
+[
+  {
+    "assignees": [
+      {
+        "login": "reviewer"
+      }
+    ],
+    "author": {
+      "login": "octocat"
+    },
+    "isDraft": false,
+    "labels": [
+      {
+        "color": "1d76db",
+        "name": "reviewed"
+      }
+    ],
+    "number": 42,
+    "repository": {
+      "nameWithOwner": "example/project"
+    },
+    "state": "open",
+    "title": "Keep discovery output typed",
+    "updatedAt": "2026-08-25T12:00:00Z",
+    "url": "https://github.com/example/project/pull/42"
+  },
+  {
+    "assignees": [],
+    "author": null,
+    "isDraft": true,
+    "labels": [],
+    "number": 43,
+    "repository": {
+      "nameWithOwner": "example/project"
+    },
+    "state": "open",
+    "title": "Handle unavailable authors",
+    "updatedAt": "2026-08-26T08:30:00Z",
+    "url": "https://github.com/example/project/pull/43"
+  }
+]

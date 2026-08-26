@@ -8,6 +8,7 @@ use crate::config::ConfigService;
 use crate::connections::{BootstrapTokenStore, ConnectionHub};
 use crate::messages::{ClientMessage, ErrorCode, PROTOCOL_VERSION, ServerMessage, SetupStatus};
 use crate::router::MessageRouter;
+use crate::state::DashboardService;
 
 const AUTHENTICATION_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -15,6 +16,7 @@ const AUTHENTICATION_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct SessionServices {
     pub config_service: Arc<ConfigService>,
     pub connections: Arc<ConnectionHub>,
+    pub dashboard_service: Arc<DashboardService>,
     pub router: Arc<MessageRouter>,
     pub tokens: Arc<BootstrapTokenStore>,
 }
@@ -57,9 +59,26 @@ pub async fn run(mut socket: WebSocket, services: SessionServices) {
     } else {
         SetupStatus::Required
     };
+    let dashboard = match services.dashboard_service.snapshot() {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            tracing::error!(%error, "could not read dashboard state for a connection");
+            services.connections.unregister(connection_id);
+            send_and_close(
+                &mut socket,
+                error_message(
+                    ErrorCode::Internal,
+                    "The dashboard service could not synchronize the connection.",
+                ),
+            )
+            .await;
+            return;
+        }
+    };
     let ready = ServerMessage::ConnectionReady {
         active_configuration,
         connection_id: format!("connection-{connection_id}"),
+        dashboard,
         event_sequence: services.connections.current_event_sequence(),
         protocol_version: PROTOCOL_VERSION,
         setup_status,
@@ -142,7 +161,7 @@ pub async fn run(mut socket: WebSocket, services: SessionServices) {
             );
             continue;
         }
-        let response = match services.router.route(request).await {
+        let response = match services.router.route(connection_id, request).await {
             Ok(response) => ServerMessage::Response {
                 request_id,
                 response,

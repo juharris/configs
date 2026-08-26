@@ -2,7 +2,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-pub const PROTOCOL_VERSION: u16 = 1;
+use crate::config::ItemKind;
+
+pub const PROTOCOL_VERSION: u16 = 2;
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -48,17 +50,118 @@ pub enum ClientMessage {
     tag = "type"
 )]
 pub enum ClientRequest {
-    ApplyOptifySetup { setup: OptifySetup },
+    ApplyOptifySetup {
+        setup: OptifySetup,
+    },
+    CancelRun {
+        run_id: String,
+    },
+    PreviewButton {
+        button_index: usize,
+        button_list: ButtonList,
+        #[ts(type = "number")]
+        configuration_revision: u64,
+        item: ItemReference,
+        prompt: Option<String>,
+        section_id: String,
+    },
+    RefreshSection {
+        #[ts(type = "number")]
+        configuration_revision: u64,
+        section_id: String,
+    },
+    RunButton {
+        button_index: usize,
+        button_list: ButtonList,
+        #[ts(type = "number")]
+        configuration_revision: u64,
+        item: ItemReference,
+        prompt: Option<String>,
+        section_id: String,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct DashboardItem {
+    pub advanced_buttons: Vec<DashboardButton>,
+    pub assignees: Vec<String>,
+    pub always_buttons: Vec<DashboardButton>,
+    pub author: Option<String>,
+    pub is_draft: Option<bool>,
+    pub item_kind: ItemKind,
+    pub labels: Vec<DashboardLabel>,
+    #[ts(type = "number")]
+    pub number: u64,
+    pub repository: String,
+    pub source: Option<String>,
+    pub state: String,
+    pub title: String,
+    pub updated_at: String,
+    pub url: String,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum ButtonList {
+    Advanced,
+    Always,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct DashboardButton {
+    pub confirm: bool,
+    pub disabled: bool,
+    pub index: usize,
+    pub label: String,
+    pub prompt: Option<PromptPresentation>,
+    pub title: String,
+    pub url: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct DashboardLabel {
+    pub color: Option<String>,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct DashboardSnapshot {
+    #[ts(type = "number")]
+    pub configuration_revision: u64,
+    pub sections: Vec<SectionSnapshot>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     AuthenticationFailed,
+    ConfigurationChanged,
     Internal,
+    InvalidButton,
+    InvalidItem,
     InvalidMessage,
+    InvalidRun,
+    InvalidSection,
     InvalidSetup,
     ProtocolMismatch,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct ItemReference {
+    #[ts(type = "number")]
+    pub number: u64,
+    pub repository: String,
+    pub source: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, TS)]
@@ -77,6 +180,8 @@ pub struct OptifySetup {
 )]
 pub enum ServerEvent {
     ConfigurationReloaded { configuration: ActiveConfiguration },
+    DashboardUpdated { dashboard: DashboardSnapshot },
+    RunUpdated { run: RunSnapshot },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -89,6 +194,7 @@ pub enum ServerMessage {
     ConnectionReady {
         active_configuration: Option<ActiveConfiguration>,
         connection_id: String,
+        dashboard: Option<DashboardSnapshot>,
         #[ts(type = "number")]
         event_sequence: u64,
         protocol_version: u16,
@@ -120,7 +226,75 @@ pub enum ServerMessage {
     tag = "type"
 )]
 pub enum ServerResponse {
+    ButtonPreviewed { preview: String },
+    ButtonRunAccepted { run: RunSnapshot },
     OptifySetupApplied { configuration: ActiveConfiguration },
+    RunCancellationAccepted { run_id: String },
+    SectionRefreshAccepted { refresh: SectionRefresh },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct PromptPresentation {
+    pub label: String,
+    pub placeholder: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct RunSnapshot {
+    #[ts(type = "number | null")]
+    pub exit_code: Option<i32>,
+    pub id: String,
+    pub label: String,
+    pub output: String,
+    pub preview: String,
+    pub status: RunStatus,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum RunStatus {
+    Cancelled,
+    Completed,
+    Failed,
+    Queued,
+    Running,
+    TimedOut,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum SectionRefreshStatus {
+    Idle,
+    Queued,
+    Refreshing,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct SectionRefresh {
+    pub coalesced: bool,
+    pub section_id: String,
+    pub status: SectionRefreshStatus,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct SectionSnapshot {
+    pub error: Option<String>,
+    pub id: String,
+    pub items: Vec<DashboardItem>,
+    pub items_per_page: usize,
+    #[ts(type = "number | null")]
+    pub last_successful_refresh: Option<u64>,
+    pub stale: bool,
+    pub status: SectionRefreshStatus,
+    pub title: String,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]

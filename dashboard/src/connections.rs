@@ -7,7 +7,7 @@ use thiserror::Error;
 use tokio::sync::{mpsc, watch};
 
 use crate::config::ConfigurationSnapshot;
-use crate::messages::{ServerEvent, ServerMessage};
+use crate::messages::{DashboardSnapshot, RunSnapshot, ServerEvent, ServerMessage};
 
 const EVENT_REPLAY_CAPACITY: usize = 128;
 const OUTBOUND_QUEUE_CAPACITY: usize = 64;
@@ -88,11 +88,38 @@ impl ConnectionHub {
         &self,
         snapshot: ConfigurationSnapshot,
     ) -> Result<(), ConnectionError> {
+        self.publish_event(ServerEvent::ConfigurationReloaded {
+            configuration: snapshot.transport(),
+        })
+    }
+
+    pub fn publish_dashboard(&self, snapshot: DashboardSnapshot) -> Result<(), ConnectionError> {
+        self.publish_event(ServerEvent::DashboardUpdated {
+            dashboard: snapshot,
+        })
+    }
+
+    pub fn publish_run(&self, connection_id: u64, run: RunSnapshot) -> Result<(), ConnectionError> {
         let sequence = self.next_event_sequence.fetch_add(1, Ordering::AcqRel);
         let message = ServerMessage::Event {
-            event: ServerEvent::ConfigurationReloaded {
-                configuration: snapshot.transport(),
-            },
+            event: ServerEvent::RunUpdated { run },
+            event_id: format!("event-{sequence}"),
+            sequence,
+        };
+        let mut connections = self.connections.lock().map_err(|_| ConnectionError::Lock)?;
+        let should_remove = connections
+            .get(&connection_id)
+            .is_none_or(|sender| sender.try_send(message).is_err());
+        if should_remove {
+            connections.remove(&connection_id);
+        }
+        Ok(())
+    }
+
+    fn publish_event(&self, event: ServerEvent) -> Result<(), ConnectionError> {
+        let sequence = self.next_event_sequence.fetch_add(1, Ordering::AcqRel);
+        let message = ServerMessage::Event {
+            event,
             event_id: format!("event-{sequence}"),
             sequence,
         };
@@ -171,6 +198,20 @@ impl ConnectionHub {
                 && let Err(error) = self.publish_configuration(snapshot)
             {
                 tracing::error!(%error, "could not publish configuration event");
+            }
+        }
+    }
+
+    pub async fn publish_dashboard_events(
+        self: Arc<Self>,
+        mut snapshots: watch::Receiver<Option<DashboardSnapshot>>,
+    ) {
+        while snapshots.changed().await.is_ok() {
+            let snapshot = snapshots.borrow_and_update().clone();
+            if let Some(snapshot) = snapshot
+                && let Err(error) = self.publish_dashboard(snapshot)
+            {
+                tracing::error!(%error, "could not publish dashboard event");
             }
         }
     }

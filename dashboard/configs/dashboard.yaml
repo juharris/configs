@@ -3,6 +3,4 @@ imports:
   - dashboard/application
   - dashboard/autocomplete
   - dashboard/buttons
-  - dashboard/repositories
   - dashboard/sections
-
