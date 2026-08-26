@@ -77,10 +77,20 @@ function dashboardWithActions(): DashboardSnapshot {
       index: 0,
       label: "Review",
       prompt: {
+        default: "start in a new work tree",
         label: "Review focus",
         placeholder: "Add areas to inspect",
       },
-      title: "codex exec '/review https://example.test/pull/42'",
+      title:
+        "codex exec '/review https://example.test/pull/42 start in a new work tree'",
+      url: null,
+    },
+    {
+      disabled: false,
+      index: 1,
+      label: "Check",
+      prompt: null,
+      title: "gh pr checks https://example.test/pull/42",
       url: null,
     },
   ];
@@ -129,6 +139,9 @@ describe("DashboardPage", () => {
     expect(screen.queryByText("Connected")).toBeNull();
     expect(screen.getByRole("link", { name: "Options" }).textContent).toBe("⚙︎");
     expect(screen.queryByText("Options")).toBeNull();
+    expect(screen.getByRole("link", { name: "Command logs" }).textContent).toBe(
+      "▤",
+    );
     const reference = screen.getByRole("link", {
       name: "example/project#42",
     });
@@ -552,7 +565,7 @@ describe("DashboardPage", () => {
     const previewButton = vi
       .fn()
       .mockResolvedValue(
-        "codex exec '/review https://example.test/pull/42 focus on tests'",
+        "codex exec '/review https://example.test/pull/42 start in a new work tree'",
       );
     const runButton = vi.fn().mockResolvedValue(undefined);
     const user = userEvent.setup();
@@ -574,7 +587,26 @@ describe("DashboardPage", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Review" }));
-    await user.type(screen.getByLabelText("Review focus"), "focus on tests");
+    await screen.findByText(
+      "codex exec '/review https://example.test/pull/42 start in a new work tree'",
+    );
+    expect(runButton).not.toHaveBeenCalled();
+    const prompt = screen.getByLabelText("Review focus") as HTMLInputElement;
+    expect(prompt.placeholder).toBe("Add areas to inspect");
+    expect(prompt.value).toBe("start in a new work tree");
+    expect(previewButton).toHaveBeenLastCalledWith(
+      "reviews",
+      actionsDashboard.sections[0].items[0],
+      "always",
+      0,
+      "start in a new work tree",
+    );
+
+    previewButton.mockResolvedValue(
+      "codex exec '/review https://example.test/pull/42 focus on tests'",
+    );
+    await user.clear(prompt);
+    await user.type(prompt, "focus on tests");
     await screen.findByText(
       "codex exec '/review https://example.test/pull/42 focus on tests'",
     );
@@ -586,6 +618,30 @@ describe("DashboardPage", () => {
       "always",
       0,
       "focus on tests",
+    );
+
+    previewButton.mockResolvedValue(
+      "gh pr checks https://example.test/pull/42",
+    );
+    await user.click(screen.getByRole("button", { name: "Check" }));
+    await screen.findByText("gh pr checks https://example.test/pull/42");
+    expect(screen.queryByLabelText("Review focus")).toBeNull();
+    expect(previewButton).toHaveBeenLastCalledWith(
+      "reviews",
+      actionsDashboard.sections[0].items[0],
+      "always",
+      1,
+      null,
+    );
+    expect(runButton).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    expect(runButton).toHaveBeenLastCalledWith(
+      "reviews",
+      actionsDashboard.sections[0].items[0],
+      "always",
+      1,
+      null,
     );
 
     await user.click(
@@ -633,7 +689,9 @@ describe("DashboardPage", () => {
     const { rerender } = render(view({}));
 
     await user.click(screen.getByRole("button", { name: "Review" }));
-    await user.type(screen.getByLabelText("Review focus"), "focus on tests");
+    const prompt = screen.getByLabelText("Review focus");
+    await user.clear(prompt);
+    await user.type(prompt, "focus on tests");
     await waitFor(() => expect(requestAutocomplete).toHaveBeenCalledTimes(1));
     const request = requestAutocomplete.mock.calls[0][0];
     expect(request).toMatchObject({
@@ -697,6 +755,7 @@ describe("DashboardPage", () => {
         previewButton={vi.fn()}
         refreshSection={vi.fn()}
         run={{
+          createdAt: 1_787_742_000_000,
           exitCode: null,
           id: "run-8",
           label: "Review",
@@ -711,5 +770,35 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Inspecting files…")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(cancelRun).toHaveBeenCalledWith("run-8");
+  });
+
+  it("shows detached commands as started without retaining cancellation", () => {
+    render(
+      <DashboardPage
+        activeConfiguration={configuration}
+        {...autocompleteProps}
+        cancelRun={vi.fn()}
+        connectionError={null}
+        connectionStatus="connected"
+        dashboard={dashboard}
+        dismissRun={vi.fn()}
+        previewButton={vi.fn()}
+        refreshSection={vi.fn()}
+        run={{
+          createdAt: 1_787_742_000_000,
+          exitCode: null,
+          id: "run-9",
+          label: "Review",
+          output: "Command started.",
+          preview: "open a configured application",
+          status: "started",
+        }}
+        runButton={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Started/)).toBeTruthy();
+    expect(screen.getByText("Command started.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
   });
 });

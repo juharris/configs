@@ -28,6 +28,22 @@ Open `http://127.0.0.1:5173`, the loopback URL printed by Vite, in a normal brow
 Vite keeps that stable public origin and proxies application traffic to Axum on `127.0.0.1:3000`, so Optify setup persists across restarts.
 If that port is occupied, stop the conflicting process and rerun the command rather than switching to a random port.
 
+Directories and features can be supplied as repeated URL query parameters to open and apply a setup without first editing the Options page:
+
+```text
+http://127.0.0.1:5173/?config_dirs=/Users/jus/src/github.com/shopify-playground/justin.harris.dotfiles/dashboard/configs&features=dashboard
+```
+
+Repeat either parameter to preserve multiple ordered values:
+
+```text
+http://127.0.0.1:5173/?config_dirs=/personal/configs&config_dirs=/work/configs&features=dashboard&features=work-dashboard
+```
+
+The frontend reads repeated values with `URLSearchParams.getAll()` rather than parsing delimiters inside a parameter.
+A URL setup takes precedence over saved browser values and is persisted only after the backend accepts it.
+An incomplete or invalid URL setup opens the Options page instead of silently using older saved values.
+
 On first use, open the Options page and add one or more absolute configuration-directory paths under **Optify directories**.
 For example, the first directory might contain personal configuration while the second contains private-work configuration.
 Then add the ordered root feature names under **Optify features** and select **Apply Optify configuration**.
@@ -107,6 +123,10 @@ The positive `cache_ttl_seconds` value caches successful normalized results for 
 Changing one command invalidates only that command's cache entry; failures are never cached.
 Sections start open by default.
 Set `collapsed: true` on an individual section when it should start minimized.
+
+Set `detached: true` on a command button when another application should own the launched work.
+Detached commands report only startup success or an immediate startup failure; after **Started**, the external application owns progress, cancellation, timeout, and final status.
+Leave `detached` unset for ordinary commands whose output and completion should remain in the dashboard.
 
 Do not introduce a named command registry merely to deduplicate similar strings.
 Keeping a complete command at its point of use makes personal configuration easier to read and change.

@@ -68,7 +68,8 @@ impl MessageRouter {
 
     pub async fn route(
         &self,
-        connection_id: u64,
+        socket_id: u64,
+        connection_id: &str,
         request: ClientRequest,
     ) -> Result<ServerResponse, RequestError> {
         match request {
@@ -76,9 +77,7 @@ impl MessageRouter {
                 self.apply_optify_setup.handle(setup).await
             }
             ClientRequest::CancelAutocomplete { editor_id } => {
-                self.cancel_autocomplete
-                    .handle(connection_id, editor_id)
-                    .await
+                self.cancel_autocomplete.handle(socket_id, editor_id).await
             }
             ClientRequest::CancelRun { run_id } => {
                 self.cancel_run.handle(connection_id, run_id).await
@@ -124,7 +123,7 @@ impl MessageRouter {
             } => {
                 self.request_autocomplete
                     .handle(
-                        connection_id,
+                        socket_id,
                         configuration_revision,
                         section_id,
                         item,
@@ -194,7 +193,7 @@ impl CancelRunHandler {
 
     pub async fn handle(
         &self,
-        connection_id: u64,
+        connection_id: &str,
         run_id: String,
     ) -> Result<ServerResponse, RequestError> {
         self.process_service
@@ -388,7 +387,7 @@ impl RunButtonHandler {
     #[allow(clippy::too_many_arguments)]
     pub async fn handle(
         &self,
-        connection_id: u64,
+        connection_id: &str,
         configuration_revision: u64,
         section_id: String,
         item: ItemReference,
@@ -535,6 +534,7 @@ mod tests {
         let response = router
             .route(
                 1,
+                "connection-test",
                 ClientRequest::ApplyOptifySetup {
                     setup: OptifySetup {
                         config_directories: vec![

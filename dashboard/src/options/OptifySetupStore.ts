@@ -1,7 +1,9 @@
 import type { OptifySetup } from "../generated/transport";
 
 export const CONFIG_DIRECTORIES_KEY = "personal-dashboard.config-directories";
+export const CONFIG_DIRECTORIES_PARAMETER = "config_dirs";
 export const FEATURES_KEY = "personal-dashboard.features";
+export const FEATURES_PARAMETER = "features";
 
 type StorageAccess = Pick<Storage, "getItem" | "setItem">;
 
@@ -13,7 +15,14 @@ export class OptifySetupStore {
     this.#storage = storage;
   }
 
-  load(): OptifySetup | null {
+  load(parameters?: URLSearchParams): OptifySetup | null {
+    const parameterSetup =
+      parameters === undefined ? null : setupFromParameters(parameters);
+    if (parameterSetup !== null) {
+      return validateOptifySetup(parameterSetup).length === 0
+        ? parameterSetup
+        : null;
+    }
     const configDirectories = parseStringArray(
       this.#storage.getItem(CONFIG_DIRECTORIES_KEY),
     );
@@ -35,6 +44,19 @@ export class OptifySetupStore {
     this.#storage.setItem(CONFIG_DIRECTORIES_KEY, configDirectories);
     this.#storage.setItem(FEATURES_KEY, features);
   }
+}
+
+function setupFromParameters(parameters: URLSearchParams): OptifySetup | null {
+  if (
+    !parameters.has(CONFIG_DIRECTORIES_PARAMETER) &&
+    !parameters.has(FEATURES_PARAMETER)
+  ) {
+    return null;
+  }
+  return {
+    configDirectories: parameters.getAll(CONFIG_DIRECTORIES_PARAMETER),
+    features: parameters.getAll(FEATURES_PARAMETER),
+  };
 }
 
 export function validateOptifySetup(setup: OptifySetup): string[] {

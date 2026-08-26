@@ -9,9 +9,11 @@ import type {
   DashboardSnapshot,
   RunSnapshot,
 } from "./generated/transport";
+import { LogsPage } from "./logs/LogsPage";
 import { OptionsPage } from "./options/OptionsPage";
 import { OptifySetupStore } from "./options/OptifySetupStore";
 import { applyTheme } from "./theme";
+import { runProgress, updateRunLogs } from "./runState";
 import {
   type AutocompleteRequestParameters,
   type ConnectionStatus,
@@ -20,7 +22,9 @@ import {
 
 export function App() {
   const store = useMemo(() => new OptifySetupStore(window.localStorage), []);
-  const [acceptedSetup, setAcceptedSetup] = useState(() => store.load());
+  const [acceptedSetup, setAcceptedSetup] = useState(() =>
+    store.load(new URLSearchParams(window.location.search)),
+  );
   const [activeConfiguration, setActiveConfiguration] =
     useState<ActiveConfiguration | null>(null);
   const [autocompletes, setAutocompletes] = useState<
@@ -31,6 +35,7 @@ export function App() {
     useState<ConnectionStatus>("connecting");
   const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
   const [run, setRun] = useState<RunSnapshot | null>(null);
+  const [runLogs, setRunLogs] = useState<RunSnapshot[] | null>(null);
   const [path, setPath] = useState(() => {
     if (acceptedSetup === null && window.location.pathname !== "/options") {
       window.history.replaceState(null, "", "/options");
@@ -42,9 +47,13 @@ export function App() {
   const clientRef = useRef<WebSocketClient | null>(null);
 
   const acceptRun = useCallback((nextRun: RunSnapshot) => {
+    setRunLogs((currentRuns) => updateRunLogs(currentRuns ?? [], nextRun));
     setRun((currentRun) => {
-      if (currentRun?.id !== nextRun.id) {
+      if (currentRun === null) {
         return nextRun;
+      }
+      if (currentRun?.id !== nextRun.id) {
+        return nextRun.status === "queued" ? nextRun : currentRun;
       }
       return runProgress(nextRun) >= runProgress(currentRun)
         ? nextRun
@@ -74,6 +83,7 @@ export function App() {
       onDashboard: setDashboard,
       onError: setConnectionError,
       onRun: acceptRun,
+      onRuns: setRunLogs,
       onStatus: setConnectionStatus,
     });
     clientRef.current = client;
@@ -122,6 +132,16 @@ export function App() {
     );
   }
 
+  if (path === "/logs") {
+    return (
+      <LogsPage
+        connectionError={connectionError}
+        connectionStatus={connectionStatus}
+        runs={runLogs}
+      />
+    );
+  }
+
   return (
     <DashboardPage
       activeConfiguration={activeConfiguration}
@@ -149,7 +169,7 @@ export function App() {
         item: DashboardItem,
         buttonList: ButtonList,
         buttonIndex: number,
-        prompt: string,
+        prompt: string | null,
       ) => {
         const client = clientRef.current;
         if (client === null || activeConfiguration === null) {
@@ -222,18 +242,4 @@ export function App() {
       }}
     />
   );
-}
-
-function runProgress(run: RunSnapshot): number {
-  switch (run.status) {
-    case "queued":
-      return 0;
-    case "running":
-      return 1;
-    case "cancelled":
-    case "completed":
-    case "failed":
-    case "timed_out":
-      return 2;
-  }
 }

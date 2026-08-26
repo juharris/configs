@@ -13,6 +13,7 @@ use crate::messages::{ButtonList, DashboardButton, DashboardItem, PromptPresenta
 #[derive(Clone, Debug)]
 pub struct ResolvedCommand {
     pub arguments: Vec<String>,
+    pub detached: bool,
     pub label: String,
     pub max_concurrent_commands: usize,
     pub max_output_bytes: usize,
@@ -74,6 +75,7 @@ pub fn resolve_command(
     let preview = template.preview(&values)?;
     Ok(ResolvedCommand {
         arguments: template.resolve_arguments(&values)?,
+        detached: button.detached,
         label: button.label.clone(),
         max_concurrent_commands: configuration
             .configuration
@@ -144,7 +146,12 @@ fn presentation(
     validated: &ValidatedButton,
 ) -> DashboardButton {
     let resolved: Result<(String, Option<String>), ButtonError> = (|| {
-        let values = TemplateValues::for_item(item).with_prompt(button.prompt.as_ref().map(|_| ""));
+        let values = TemplateValues::for_item(item).with_prompt(
+            button
+                .prompt
+                .as_ref()
+                .map(|prompt| prompt.default.as_deref().unwrap_or("")),
+        );
         if let Some(url) = &validated.url {
             let url = url.resolve_https_url(&values)?;
             return Ok((url.clone(), Some(url)));
@@ -164,6 +171,7 @@ fn presentation(
         index,
         label: button.label.clone(),
         prompt: button.prompt.as_ref().map(|prompt| PromptPresentation {
+            default: prompt.default.clone(),
             label: prompt.label.clone(),
             placeholder: prompt.placeholder.clone(),
         }),
@@ -183,4 +191,60 @@ fn presentations(
         .enumerate()
         .map(|(index, (button, validated))| presentation(item, button, index, validated))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::presentation;
+    use crate::commands::{CommandTemplate, Placeholder};
+    use crate::config::{ButtonConfig, ItemKind, ValidatedButton};
+    use crate::messages::DashboardItem;
+
+    #[test]
+    fn presents_the_configured_prompt_default_in_the_button_title() {
+        let button: ButtonConfig = serde_json::from_value(json!({
+            "command": "tool {prompt}",
+            "label": "Review",
+            "prompt": {
+                "default": "start in a new work tree",
+                "label": "Review focus",
+                "placeholder": "Add areas to inspect"
+            }
+        }))
+        .unwrap();
+        let item = DashboardItem {
+            advanced_buttons: Vec::new(),
+            approved_by: Vec::new(),
+            assignees: Vec::new(),
+            always_buttons: Vec::new(),
+            author: None,
+            is_draft: Some(false),
+            item_kind: ItemKind::PullRequest,
+            labels: Vec::new(),
+            number: 42,
+            repository: "example/project".to_owned(),
+            source: None,
+            state: "open".to_owned(),
+            title: "Keep the dashboard dense".to_owned(),
+            updated_at: "2026-08-26T12:00:00Z".to_owned(),
+            url: "https://example.test/pull/42".to_owned(),
+        };
+        let validated = ValidatedButton {
+            command: Some(
+                CommandTemplate::compile("tool {prompt}".to_owned(), &Placeholder::button())
+                    .unwrap(),
+            ),
+            url: None,
+        };
+
+        let presentation = presentation(&item, &button, 0, &validated);
+
+        assert_eq!(presentation.title, "tool 'start in a new work tree'");
+        assert_eq!(
+            presentation.prompt.unwrap().default.as_deref(),
+            Some("start in a new work tree")
+        );
+    }
 }

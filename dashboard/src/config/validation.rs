@@ -172,6 +172,12 @@ fn validate_button(
     }
 
     if let Some(url) = &button.url {
+        if button.detached {
+            return Err(ConfigError::field(
+                field,
+                "detached is available only for command buttons",
+            ));
+        }
         if button.prompt.is_some() {
             return Err(ConfigError::field(
                 field,
@@ -210,6 +216,9 @@ fn validate_button(
     .map_err(|error| ConfigError::field(format!("{field}.command"), error))?;
 
     if let Some(prompt) = &button.prompt {
+        if let Some(default) = &prompt.default {
+            require_nonblank(&format!("{field}.prompt.default"), default)?;
+        }
         require_nonblank(&format!("{field}.prompt.label"), &prompt.label)?;
         require_nonblank(&format!("{field}.prompt.placeholder"), &prompt.placeholder)?;
     }
@@ -295,4 +304,33 @@ fn require_nonblank(field: &str, value: &str) -> Result<(), ConfigError> {
         return Err(ConfigError::field(field, "cannot be blank"));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::validate_button;
+    use crate::config::types::{ButtonConfig, PromptConfig};
+
+    #[test]
+    fn rejects_a_blank_prompt_default() {
+        let button = ButtonConfig {
+            command: Some("printf '%s' '{prompt}'".to_owned()),
+            detached: false,
+            label: "Review".to_owned(),
+            prompt: Some(PromptConfig {
+                default: Some("  ".to_owned()),
+                label: "Review focus".to_owned(),
+                placeholder: "Add areas to inspect".to_owned(),
+            }),
+            url: None,
+        };
+
+        let error =
+            validate_button(&button, "buttons.always[0]", Path::new("/bin/bash")).unwrap_err();
+
+        assert_eq!(error.field, "buttons.always[0].prompt.default");
+        assert_eq!(error.message, "cannot be blank");
+    }
 }

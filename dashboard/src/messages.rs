@@ -4,7 +4,7 @@ use ts_rs::TS;
 
 use crate::config::ItemKind;
 
-pub const PROTOCOL_VERSION: u16 = 7;
+pub const PROTOCOL_VERSION: u16 = 9;
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -60,6 +60,7 @@ pub struct BootstrapResponse {
 )]
 pub enum ClientMessage {
     Authenticate {
+        connection_id: Option<String>,
         #[ts(type = "number | null")]
         last_event_sequence: Option<u64>,
         protocol_version: u16,
@@ -252,6 +253,8 @@ pub enum ServerMessage {
         #[ts(type = "number")]
         event_sequence: u64,
         protocol_version: u16,
+        run: Option<RunSnapshot>,
+        runs: Vec<RunSnapshot>,
         setup_status: SetupStatus,
     },
     Error {
@@ -308,6 +311,7 @@ pub enum ServerResponse {
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase")]
 pub struct PromptPresentation {
+    pub default: Option<String>,
     pub label: String,
     pub placeholder: String,
 }
@@ -316,6 +320,8 @@ pub struct PromptPresentation {
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase")]
 pub struct RunSnapshot {
+    #[ts(type = "number")]
+    pub created_at: u64,
     #[ts(type = "number | null")]
     pub exit_code: Option<i32>,
     pub id: String,
@@ -333,6 +339,7 @@ pub enum RunStatus {
     Failed,
     Queued,
     Running,
+    Started,
     TimedOut,
 }
 

@@ -4,7 +4,8 @@ Personal Dashboard is a local, configuration-driven view of GitHub pull requests
 It runs customizable local commands to find items, invoke coding agents and other tools, provide prompt autocomplete, stream output, and cancel work in progress.
 
 Pull requests and issues can each have ordered buttons that are always visible and advanced buttons revealed on demand.
-Commands stay next to the feature that uses them, and hovering over a button shows its fully resolved command through the native HTML `title` attribute.
+Commands stay next to the feature that uses them.
+Selecting a command button opens a pre-run view of the backend-resolved command, including item values and any configured prompt text, before an explicit **Run** action executes it.
 
 Strongly typed Optify configuration can be split into focused files imported by root features.
 An Options page lets each person select ordered configuration directories, such as personal and private-work directories, and choose the root features to apply.
@@ -15,6 +16,11 @@ A single start command launches the local service and opens the dashboard in the
 Delivery phases 1 through 6 are implemented.
 The repository contains the Axum and React/Vite scaffold, the Options page and browser store, typed Optify configuration loading and reloads, generated schema and transport artifacts, example feature files, embedded release assets, authenticated WebSocket synchronization, configured item discovery with per-command caching and pagination, configured actions and prompts, generic process streaming and cancellation, and the dense dashboard UI.
 Configured prompt autocomplete debounces requests, cancels superseded editor processes, bounds suggestions, and requires an explicit user action before applying one.
+Button processes remain server-owned across WebSocket reconnects.
+The output limit truncates the retained display text while the service continues draining the command to completion.
+A compact dashboard control opens `/logs`, which keeps the 100 most recent commands in memory for the lifetime of the local service.
+Each entry shows the exact backend-resolved command, status, exit code, and bounded output, so a failed command can be copied and run manually elsewhere.
+The dashboard does not persist this history to disk.
 
 ## Button templates
 
@@ -28,8 +34,15 @@ Pull request and issue buttons can fill in these placeholders:
 | `{prompt}`          | Text entered in the button's prompt          | Yes       | No    |
 
 A command containing `{prompt}` must declare a `prompt`, and a declared prompt requires `{prompt}` in the command.
+Prompt labels, placeholders, and optional defaults come directly from that button's configuration.
+When `default` is configured, the prompt input and resolved command preview start with that editable value.
+Buttons without a configured prompt still show their resolved command before running and do not render prompt controls.
 URL buttons cannot declare prompts and must resolve to HTTPS.
 Unknown, malformed, or unavailable placeholders are configuration errors.
+
+Set `detached: true` on a command button that only launches work for another application to own.
+The dashboard reports an immediate launch failure when it can, otherwise marks the command **Started** after a short startup window and releases its timeout, cancellation, output-streaming, and concurrency ownership.
+Later output and exit status belong to the launched application and are not reported by the dashboard.
 
 Command placeholders work in unquoted, single-quoted, and double-quoted Bash text.
 Their values are passed as positional parameters so they cannot change the command structure.
@@ -48,7 +61,9 @@ fi
 - label: Review
   command: >-
     codex exec '/review {item.url} {prompt}'
+  detached: true
   prompt:
+    default: Start in a new work tree
     label: Review focus
     placeholder: Add areas to inspect closely
 - label: Open

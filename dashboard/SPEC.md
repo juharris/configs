@@ -37,7 +37,8 @@ Rust types define the configuration contract, and a generated local JSON Schema 
 - Refresh connected tabs automatically after Optify successfully rebuilds changed configuration files.
 - Support customizable non-interactive Bash commands, including pipelines and redirection.
 - Stream standard output, standard error, completion, failure, timeout, and cancellation events to the UI.
-- Show the fully resolved command for every command button through its native HTML `title` attribute.
+- Start configured detached commands without retaining ownership after a short startup window.
+- Open a pre-run view of the fully resolved command before executing any command button.
 - Provide low-latency prompt autocomplete through a separately configured local command.
 - Fail with a precise error when configuration, a command template, an executable, or a required value is invalid.
 - Provide one development command and one release executable that starts the local service and opens the browser UI.
@@ -51,6 +52,7 @@ Rust types define the configuration contract, and a generated local JSON Schema 
 - Managing Git branches or worktrees independently of configured commands.
 - Providing a named command registry or deduplicating similar command strings.
 - Running interactive terminal applications that require a TTY.
+- Tracking or controlling work after a detached command hands it to another application.
 - Storing access tokens or other credentials in the YAML file.
 - Exposing command execution to a LAN, remote browser, or hosted frontend.
 
@@ -155,6 +157,12 @@ The Options page is always available from the dashboard navigation and contains 
 
 The dashboard route redirects to the Options page when valid directory and feature arrays are unavailable.
 After valid Optify setup exists, the page remains available for later changes.
+
+The dashboard also accepts ordered setup values through repeated `config_dirs` and `features` URL query parameters.
+The frontend reads each list with `URLSearchParams.getAll()` and does not parse a delimited string value.
+When either setup parameter is present, the complete URL setup takes precedence over browser-local values.
+An incomplete or invalid URL setup opens the Options page instead of falling back to older persisted values.
+The browser persists URL-provided values only after the backend accepts the setup.
 
 The browser persists exactly two values in `localStorage`:
 
@@ -382,13 +390,16 @@ options:
         - label: Investigate
           command: >-
             cd; pi --print 'Investigate {item.url}. {prompt}'
+          detached: true
           prompt:
+            default: Start in a new work tree
             label: Additional instructions
             placeholder: Add context or constraints
       advanced:
         - label: Start work
           command: >-
             cd; claude --print 'Implement {item.url}. {prompt}'
+          detached: true
           prompt:
             label: Implementation details
             placeholder: Add constraints or acceptance criteria
@@ -400,6 +411,7 @@ options:
         - label: Review
           command: >-
             cd; codex exec '/review {item.url} {prompt}'
+          detached: true
           prompt:
             label: Review focus
             placeholder: Add areas to inspect closely
@@ -407,6 +419,7 @@ options:
         - label: Second opinion
           command: >-
             cd; claude --print 'Review {item.url}. {prompt}'
+          detached: true
           prompt:
             label: Review focus
             placeholder: Add areas to inspect closely
@@ -479,7 +492,13 @@ Each button has a visible `label` and exactly one of:
 - `url`, containing a URL template to open in a new browser tab.
 
 A command button may also define `prompt`.
+A command button may set `detached: true` when its only responsibility is to launch work owned by another application.
+Detached commands report an immediate launch failure when observable, otherwise transition to **Started** after a short startup window and release dashboard timeout, cancellation, output-streaming, and concurrency ownership.
+Output and exit status after that transition belong to the launched application and are not dashboard state.
+A URL button cannot set `detached`.
 A prompt declaration requires the command to contain `{prompt}`, and `{prompt}` requires a prompt declaration.
+The prompt's configured `label`, `placeholder`, and optional `default` are the only prompt wording the UI renders.
+Application code must not invent prompt labels, placeholders, defaults, or fallback wording.
 Commands that should change directories use ordinary Bash `cd` syntax in the configured string.
 The dashboard does not inspect local checkouts or disable actions based on their presence.
 
@@ -540,7 +559,16 @@ Every command button receives the preview through its native HTML `title` attrib
 A URL button receives its complete validated URL as `title`.
 If resolution fails for an item, the button is disabled and its `title` contains the same failure reason rather than a fabricated command.
 
-Clicking a button sends only its position, configuration revision, prompt, and item reference through the WebSocket.
+Selecting every enabled command button opens a pre-run view and does not execute the command.
+The view requests its preview from the backend through the same command-resolution path used for execution.
+Item placeholders are filled as soon as the view opens.
+When a button configures a prompt, the view renders only its configured label and placeholder, initializes the editable value from its optional default, and immediately resolves the preview with that value.
+The view refreshes the resolved preview as the prompt changes.
+When a button does not configure a prompt, the same view renders the resolved command without prompt controls.
+Only selecting **Run** from that view executes the resolved command.
+URL buttons remain direct links and do not open the pre-run view.
+
+Preview and execution requests send only the button position, configuration revision, prompt value, and item reference through the WebSocket.
 The browser never sends a command string, executable, or arguments.
 
 ## Item discovery
@@ -581,9 +609,11 @@ The runner:
 - Invokes the configured Bash executable with the fixed compiled script and separate positional values.
 - Captures standard output and standard error concurrently.
 - Emits bounded text chunks and a final exit status.
-- Enforces global concurrency, per-run output, and timeout limits.
+- Enforces global concurrency, per-run retained-output, and timeout limits.
+- Continues draining a command after its retained output reaches the configured limit so display truncation does not terminate work.
 - Starts each command in a process group so cancellation terminates its descendants.
 - Records whether a run completed, failed, timed out, or was cancelled.
+- Marks a configured detached command **Started** after its short startup window, then stops tracking or controlling it.
 
 Command output is generic text in the first release.
 The backend does not parse one coding agent's event stream, capture provider session IDs, or infer provider state.
@@ -614,12 +644,12 @@ Serde tagged enums define the protocol, and ts-rs generates matching TypeScript 
 
 Client-to-server envelopes are:
 
-- `authenticate`, containing the bootstrap token and supported protocol version.
+- `authenticate`, containing the bootstrap token, supported protocol version, event cursor, and optional server-issued connection ID to resume.
 - `request`, containing a unique request ID and one typed request variant.
 
 Server-to-client envelopes are:
 
-- `connection_ready`, containing connection, protocol, setup status, optional active configuration, and event-cursor information.
+- `connection_ready`, containing the stable connection ID, protocol, setup status, optional active configuration, latest run snapshot, bounded recent run history, and event-cursor information.
 - `response`, correlated to a request ID.
 - `error`, with a stable code, safe message, retryability, and optional field path.
 - `event`, with an event ID, sequence number, and typed payload.
@@ -644,6 +674,7 @@ No application service writes directly to a socket.
 
 The frontend reconnects with bounded exponential backoff and provides its last processed event cursor.
 Each reconnect obtains a new bootstrap token.
+The frontend also returns the server-issued connection ID so active button runs remain owned by the same tab after socket replacement.
 The server replays retained events when possible and otherwise requires fresh dashboard and active-run snapshots.
 Mutating requests are not replayed automatically.
 
@@ -682,13 +713,19 @@ Only one autocomplete process per editor remains active.
 A newer request cancels the older process, and the UI ignores events whose request ID is no longer current.
 Suggestions are optional edits and never execute a button.
 
-Prompt drafts, generated autocomplete requests, and suggestions are excluded from logs.
+Generated autocomplete requests and suggestions are excluded from logs.
+Button prompt text appears in the fully resolved command recorded for a run because that command must be available for manual recovery.
+Run history remains bounded, transient in-memory state and is never written to disk by the dashboard.
 
 ## User interface
 
-The first release has an Options page at `/options`, one dashboard page, and a run drawer.
+The first release has an Options page at `/options`, a command-log page at `/logs`, one dashboard page, and a run drawer.
 
 - The dashboard navigation includes an **Options** link whenever the dashboard is available.
+- The dashboard navigation includes a compact command-log link.
+- The command-log page shows up to 100 recent runs in newest-first order with label, status, local start time, exit code, bounded output, and the entire backend-resolved command used for execution.
+- Failed, cancelled, and timed-out log entries are visually prominent, and every logged command remains selectable and copyable for manual execution elsewhere.
+- Command-log state survives page navigation and WebSocket replacement while the local dashboard service remains running.
 - The Options page presents Optify directories followed by Optify features.
 - Directory and feature rows have explicit labels and keyboard-accessible controls for adding, removing, and reordering values.
 - Applying Optify changes reports path, schema, feature, and application-validation errors without discarding the last active setup.
@@ -701,6 +738,7 @@ The first release has an Options page at `/options`, one dashboard page, and a r
 - Clicking a section heading collapses or expands its items and refresh controls without persisting presentation state.
 - Collapsed sections and hidden browser tabs do not request discovery refreshes.
 - Items show repository, number, title, author, labels, a compact accessible status icon, and relevant review, approver, or assignment state.
+- Item rows across every section use the same proportional column template, with the wider title track and fixed column starts shared by every row.
 - Draft, approved, open, merged, and closed status icons are visually distinct and expose their full status label to assistive technology.
 - Open pull requests and issues use green circles, closed issues use purple circles, and approved items use an angular green check without an enclosing shape.
 - Each section paginates independently using its configured item count.
@@ -709,7 +747,9 @@ The first release has an Options page at `/options`, one dashboard page, and a r
 - A per-item accessible disclosure control reveals `advanced` buttons in merged configuration order.
 - Every button uses the native HTML `title` attribute for its resolved command, validated URL, or disabled reason.
 - The application does not implement a separate custom tooltip component for command previews.
-- Buttons with prompt configuration open an editor before execution.
+- Every command button opens a pre-run view of the backend-resolved command and requires an explicit **Run** action before execution.
+- Buttons with prompt configuration show only their configured label and placeholder, initialize any configured default, and update the resolved command as the prompt changes.
+- Buttons without prompt configuration use the same pre-run view without rendering prompt controls.
 - Prompt editors show autocomplete, superseded, connection, and error states without blocking typing.
 - Runs show the full command, live output, elapsed time, a Cancel button, exit status, and final state.
 - The page shows connection and resynchronization status and disables command execution while disconnected.
@@ -737,7 +777,8 @@ A browser-accessible service that launches local processes must:
 - Compile placeholders into Bash positional parameters so dynamic values cannot alter script structure.
 - Validate HTTPS URLs before returning or opening them.
 - Open external URLs with `noopener` and `noreferrer`.
-- Never store or log bootstrap tokens, credentials, prompt text, full environments, or credential files.
+- Never store or log bootstrap tokens, credentials, full environments, or credential files.
+- Never persist run history, including resolved commands and configured prompt text, to disk.
 - Never infer a secret or environment-variable fallback.
 
 The WebSocket bootstrap token prevents another local web page from silently driving the service.
@@ -780,9 +821,11 @@ Tests must cover:
 - Compiling quoted Bash command strings, pipelines, redirection, and long folded YAML strings.
 - Placeholder behavior in unquoted, single-quoted, and double-quoted contexts.
 - Exact command-preview quoting, URL titles, and disabled reasons.
+- Command-button pre-run views, deferred execution, immediate item resolution, configured prompt defaults, live prompt resolution, configured prompt wording, and prompt-free commands.
 - Inline discovery commands and normalized item validation using checked-in fixtures.
 - Successful discovery caching, command-key changes, and TTL expiration using fake executables.
 - Generic process output, concurrency, limits, timeout, cancellation, and non-zero exit.
+- Bounded transient run history, exact failed-command retention, reconnect synchronization, and command-log rendering and copying.
 - Loopback binding, host and origin checks, bootstrap authentication, and response headers.
 - Message routing, request correlation, event ordering, reconnect resynchronization, and queue bounds.
 - Autocomplete debounce, supersession, cancellation, stale-response rejection, and bounded text output.
@@ -824,6 +867,9 @@ Fixtures and helpers should cover meaningful behavior without cloning nearly ide
 - Every discovery command and button command is a complete inline YAML string at its point of use.
 - Pull requests and issues each render their configured `always` buttons and reveal `advanced` buttons on demand.
 - Every button's native HTML `title` contains its fully resolved command, validated URL, or disabled reason.
+- Selecting a command button shows the backend-resolved command without executing it, and only **Run** executes it.
+- Item values and configured prompt defaults appear immediately in that pre-run command, while prompt changes update it live.
+- Prompt controls use only configured labels, placeholders, and defaults and are absent when no prompt is configured.
 - The browser cannot supply or alter an executable or argument vector.
 - Any compatible non-interactive local command works without provider-specific Rust or TypeScript changes.
 - Prompt autocomplete runs the configured command, cancels superseded work, and ignores stale results.

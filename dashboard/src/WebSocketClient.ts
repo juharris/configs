@@ -14,7 +14,7 @@ import type {
   ServerResponse,
 } from "./generated/transport";
 
-const PROTOCOL_VERSION = 7;
+const PROTOCOL_VERSION = 9;
 const RECONNECT_DELAYS = [250, 500, 1_000, 2_000, 5_000] as const;
 const REQUEST_TIMEOUT = 10_000;
 
@@ -47,6 +47,7 @@ type WebSocketClientOptions = {
   onDashboard: (dashboard: DashboardSnapshot) => void;
   onError: (message: string) => void;
   onRun: (run: RunSnapshot) => void;
+  onRuns: (runs: RunSnapshot[]) => void;
   onStatus: (status: ConnectionStatus) => void;
 };
 
@@ -58,10 +59,12 @@ export class WebSocketClient {
   readonly #onDashboard: (dashboard: DashboardSnapshot) => void;
   readonly #onError: (message: string) => void;
   readonly #onRun: (run: RunSnapshot) => void;
+  readonly #onRuns: (runs: RunSnapshot[]) => void;
   readonly #onStatus: (status: ConnectionStatus) => void;
   readonly #pending = new Map<string, PendingRequest>();
   #active = false;
   #attempt = 0;
+  #connectionId: string | null = null;
   #generation = 0;
   #lastEventSequence: number | null = null;
   #ready = false;
@@ -76,6 +79,7 @@ export class WebSocketClient {
     this.#onDashboard = options.onDashboard;
     this.#onError = options.onError;
     this.#onRun = options.onRun;
+    this.#onRuns = options.onRuns;
     this.#onStatus = options.onStatus;
   }
 
@@ -296,6 +300,7 @@ export class WebSocketClient {
       );
       socket.addEventListener("open", () => {
         const message: ClientMessage = {
+          connectionId: this.#connectionId,
           lastEventSequence: this.#lastEventSequence,
           protocolVersion: PROTOCOL_VERSION,
           token: bootstrap.token,
@@ -349,6 +354,7 @@ export class WebSocketClient {
           return;
         }
         this.#attempt = 0;
+        this.#connectionId = message.connectionId;
         this.#lastEventSequence = Math.max(
           this.#lastEventSequence ?? 0,
           message.eventSequence,
@@ -358,6 +364,10 @@ export class WebSocketClient {
         if (message.dashboard !== null) {
           this.#onDashboard(message.dashboard);
         }
+        if (message.run !== null) {
+          this.#onRun(message.run);
+        }
+        this.#onRuns(message.runs);
         this.#synchronizeSetup(message.activeConfiguration);
         return;
       case "error": {

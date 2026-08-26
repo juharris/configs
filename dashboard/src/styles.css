@@ -74,6 +74,7 @@ summary:focus-visible {
   outline-offset: 2px;
 }
 
+.logs-layout,
 .options-layout {
   width: min(76rem, calc(100vw - 2rem));
   margin: 0 auto;
@@ -353,8 +354,14 @@ summary:focus-visible {
 }
 
 .item-list {
+  display: grid;
   padding: 0;
   margin: 0;
+  grid-template-columns:
+    1rem minmax(0, 1.2fr) minmax(0, 3.6fr) minmax(0, 1.2fr)
+    minmax(0, 1.6fr) minmax(0, 1.8fr) minmax(4.5rem, 0.75fr)
+    minmax(9rem, 1.8fr);
+  column-gap: 0.55rem;
   list-style: none;
 }
 
@@ -363,10 +370,9 @@ summary:focus-visible {
   display: grid;
   min-height: 1.85rem;
   padding: 0.24rem 0.55rem;
-  grid-template-columns:
-    auto minmax(9rem, 0.8fr) minmax(16rem, 2.5fr) minmax(7rem, 0.8fr)
-    minmax(10rem, 1.2fr) minmax(4rem, 0.9fr) auto minmax(8rem, auto);
-  gap: 0.55rem;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  row-gap: 0.55rem;
   align-items: center;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
   cursor: pointer;
@@ -409,7 +415,12 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
+.item-reference {
+  grid-column: 2;
+}
+
 .item-title {
+  grid-column: 3;
   color: var(--text);
   font-size: 0.75rem;
   font-weight: 600;
@@ -459,6 +470,7 @@ summary:focus-visible {
 .item-state {
   display: inline-flex;
   width: 1rem;
+  grid-column: 1;
   align-items: center;
   justify-content: center;
   color: var(--muted);
@@ -519,6 +531,7 @@ summary:focus-visible {
 
 .item-actions {
   grid-column: 8;
+  flex-wrap: wrap;
 }
 
 .action-button {
@@ -584,7 +597,7 @@ summary:focus-visible {
   box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 28%);
 }
 
-.prompt-editor {
+.command-editor {
   display: flex;
   min-width: 0;
   padding-top: 0.15rem;
@@ -594,14 +607,14 @@ summary:focus-visible {
   flex-wrap: wrap;
 }
 
-.prompt-editor label {
+.command-editor label {
   flex: 0 0 auto;
   color: var(--muted);
   font-size: 0.66rem;
   font-weight: 650;
 }
 
-.prompt-editor input {
+.command-editor input {
   min-width: 12rem;
   height: 1.55rem;
   padding: 0 0.4rem;
@@ -613,7 +626,7 @@ summary:focus-visible {
   font-size: 0.7rem;
 }
 
-.prompt-preview {
+.command-preview {
   width: 100%;
   padding: 0.3rem 0.4rem;
   margin: 0;
@@ -696,7 +709,8 @@ summary:focus-visible {
   font-size: 0.68rem;
 }
 
-.run-status[data-status="completed"] {
+.run-status[data-status="completed"],
+.run-status[data-status="started"] {
   color: #22c55e;
 }
 
@@ -733,6 +747,83 @@ summary:focus-visible {
 .run-output {
   min-height: 7rem;
   max-height: 23rem;
+}
+
+.logs-heading {
+  display: flex;
+  padding: 0.65rem 0 0.45rem;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+.logs-heading h1 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.logs-heading span,
+.run-log-header time,
+.run-log-command-heading,
+.run-log-output-heading {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.run-log-list {
+  display: grid;
+  padding-top: 0.5rem;
+  gap: 0.5rem;
+}
+
+.run-log-entry {
+  display: grid;
+  padding: 0.5rem;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-left: 0.2rem solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--surface);
+}
+
+.run-log-entry[data-status="cancelled"],
+.run-log-entry[data-status="failed"],
+.run-log-entry[data-status="timed_out"] {
+  border-left-color: #ef4444;
+}
+
+.run-log-header,
+.run-log-command-heading {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.run-log-header {
+  font-size: 0.75rem;
+}
+
+.run-log-command,
+.run-log-output {
+  padding: 0.4rem;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.2rem;
+  background: var(--background);
+  color: var(--text);
+  font-size: 0.68rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.run-log-command {
+  user-select: text;
+}
+
+.run-log-output {
+  max-height: 18rem;
 }
 
 form {
@@ -937,8 +1028,11 @@ h2 {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .item-row {
-    grid-template-columns: auto minmax(7rem, 0.8fr) minmax(12rem, 2fr) auto;
+  .item-list {
+    grid-template-columns: 1rem minmax(7rem, 0.8fr) minmax(12rem, 2fr) minmax(
+        7rem,
+        1fr
+      );
   }
 
   .item-context,

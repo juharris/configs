@@ -33,6 +33,8 @@ pub struct AutocompleteConfig {
 #[serde(deny_unknown_fields)]
 pub struct ButtonConfig {
     pub command: Option<String>,
+    #[serde(default)]
+    pub detached: bool,
     pub label: String,
     pub prompt: Option<PromptConfig>,
     pub url: Option<String>,
@@ -81,6 +83,7 @@ pub struct PartialRootConfig {
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PromptConfig {
+    pub default: Option<String>,
     pub label: String,
     pub placeholder: String,
 }

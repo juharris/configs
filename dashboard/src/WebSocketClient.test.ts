@@ -46,6 +46,7 @@ describe("WebSocketClient", () => {
       onDashboard: vi.fn(),
       onError: vi.fn(),
       onRun: vi.fn(),
+      onRuns: vi.fn(),
       onStatus,
     });
 
@@ -54,8 +55,9 @@ describe("WebSocketClient", () => {
     const socket = FakeWebSocket.instances[0];
     socket.open();
     expect(JSON.parse(socket.sent[0])).toEqual({
+      connectionId: null,
       lastEventSequence: null,
-      protocolVersion: 7,
+      protocolVersion: 9,
       token: "token-1",
       type: "authenticate",
     });
@@ -64,7 +66,9 @@ describe("WebSocketClient", () => {
       connectionId: "connection-1",
       dashboard: null,
       eventSequence: 0,
-      protocolVersion: 7,
+      protocolVersion: 9,
+      run: null,
+      runs: [],
       setupStatus: "required",
       type: "connection_ready",
     });
@@ -103,6 +107,7 @@ describe("WebSocketClient", () => {
     });
 
     const run = {
+      createdAt: 1_787_742_000_000,
       exitCode: null,
       id: "run-1",
       label: "Review",
@@ -206,6 +211,7 @@ describe("WebSocketClient", () => {
     const onDashboard = vi.fn();
     const onAutocomplete = vi.fn();
     const onRun = vi.fn();
+    const onRuns = vi.fn();
     const client = new WebSocketClient({
       getSetup: () => setup,
       onAutocomplete,
@@ -213,6 +219,7 @@ describe("WebSocketClient", () => {
       onDashboard,
       onError: vi.fn(),
       onRun,
+      onRuns,
       onStatus: vi.fn(),
     });
 
@@ -225,7 +232,9 @@ describe("WebSocketClient", () => {
       connectionId: "connection-1",
       dashboard,
       eventSequence: 0,
-      protocolVersion: 7,
+      protocolVersion: 9,
+      run: null,
+      runs: [],
       setupStatus: "required",
       type: "connection_ready",
     });
@@ -277,6 +286,7 @@ describe("WebSocketClient", () => {
     expect(onDashboard).toHaveBeenLastCalledWith(updatedDashboard);
 
     const run = {
+      createdAt: 1_787_742_000_000,
       exitCode: 0,
       id: "run-1",
       label: "Review",
@@ -291,6 +301,31 @@ describe("WebSocketClient", () => {
       type: "event",
     });
     expect(onRun).toHaveBeenCalledWith(run);
+
+    socket.close();
+    await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(2));
+    const reconnectedSocket = FakeWebSocket.instances[1];
+    reconnectedSocket.open();
+    expect(JSON.parse(reconnectedSocket.sent[0])).toEqual({
+      connectionId: "connection-1",
+      lastEventSequence: 4,
+      protocolVersion: 9,
+      token: "token-2",
+      type: "authenticate",
+    });
+    reconnectedSocket.receive({
+      activeConfiguration: configuration,
+      connectionId: "connection-1",
+      dashboard,
+      eventSequence: 4,
+      protocolVersion: 9,
+      run,
+      runs: [run],
+      setupStatus: "configured",
+      type: "connection_ready",
+    });
+    expect(onRun).toHaveBeenLastCalledWith(run);
+    expect(onRuns).toHaveBeenCalledWith([run]);
     client.stop();
   });
 });
@@ -346,7 +381,7 @@ function stubBootstrap(token: string) {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ protocolVersion: 7, token }),
+      json: vi.fn().mockResolvedValue({ protocolVersion: 9, token }),
       ok: true,
       status: 200,
     }),

@@ -12,6 +12,7 @@ import type {
   RunSnapshot,
   SectionSnapshot,
 } from "../generated/transport";
+import { isRunActive, runStatusLabel } from "../runState";
 import type {
   AutocompleteRequestParameters,
   ConnectionStatus,
@@ -31,7 +32,7 @@ type DashboardPageProps = {
     item: DashboardItem,
     buttonList: ButtonList,
     buttonIndex: number,
-    prompt: string,
+    prompt: string | null,
   ) => Promise<string>;
   refreshSection: (sectionId: string) => Promise<void>;
   requestAutocomplete: (
@@ -74,6 +75,14 @@ export function DashboardPage({
         {connectionError === null ? null : (
           <span className="utility-error">{connectionError}</span>
         )}
+        <a
+          aria-label="Command logs"
+          className="utility-icon-link"
+          href="/logs"
+          title="Command logs"
+        >
+          ▤
+        </a>
         <ConnectionIndicator status={connectionStatus} />
         <a
           aria-label="Options"
@@ -126,7 +135,7 @@ export function DashboardPage({
   );
 }
 
-function ConnectionIndicator({ status }: { status: ConnectionStatus }) {
+export function ConnectionIndicator({ status }: { status: ConnectionStatus }) {
   const label = connectionStatusLabel(status);
   const symbol =
     status === "connected" ? "↔" : status === "disconnected" ? "!" : null;
@@ -159,7 +168,7 @@ type PreviewButton = (
   item: DashboardItem,
   buttonList: ButtonList,
   buttonIndex: number,
-  prompt: string,
+  prompt: string | null,
 ) => Promise<string>;
 
 function DashboardSection({
@@ -487,11 +496,7 @@ function DashboardItemRow({
   );
 
   useEffect(() => {
-    if (
-      pendingAction === null ||
-      pendingAction.button.prompt === null ||
-      connectionStatus !== "connected"
-    ) {
+    if (pendingAction === null || connectionStatus !== "connected") {
       return;
     }
     let active = true;
@@ -500,7 +505,7 @@ function DashboardItemRow({
         item,
         pendingAction.buttonList,
         pendingAction.button.index,
-        prompt,
+        pendingAction.button.prompt === null ? null : prompt,
       )
         .then((resolvedPreview) => {
           if (active) {
@@ -548,18 +553,15 @@ function DashboardItemRow({
 
   const selectAction = (button: DashboardButton, buttonList: ButtonList) => {
     const action = { button, buttonList };
-    if (button.prompt === null) {
-      void execute(action, null);
-      return;
-    }
+    const defaultPrompt = button.prompt?.default ?? "";
     cancelCurrentAutocomplete();
     setActionError(null);
     setAutocompleteError(null);
     setPendingAction(action);
     setPreview(null);
     setPreviewing(true);
-    setPrompt("");
-    setSelection({ end: 0, start: 0 });
+    setPrompt(defaultPrompt);
+    setSelection({ end: defaultPrompt.length, start: defaultPrompt.length });
   };
 
   const cancelCurrentAutocomplete = () => {
@@ -680,37 +682,46 @@ function DashboardItemRow({
       </div>
       {pendingAction === null ? null : (
         <form
-          className="prompt-editor"
+          className="command-editor"
           onSubmit={(event) => {
             event.preventDefault();
-            void execute(pendingAction, prompt);
+            void execute(
+              pendingAction,
+              pendingAction.button.prompt === null ? null : prompt,
+            );
           }}
         >
-          <label htmlFor={promptId}>{pendingAction.button.prompt?.label}</label>
-          <input
-            autoFocus
-            disabled={submitting}
-            id={promptId}
-            onChange={(event) => {
-              const end = event.currentTarget.selectionEnd ?? 0;
-              const start = event.currentTarget.selectionStart ?? end;
-              cancelCurrentAutocomplete();
-              setAutocompleteError(null);
-              setPreview(null);
-              setPreviewing(true);
-              setPrompt(event.target.value);
-              setSelection({ end, start });
-            }}
-            onSelect={(event) => {
-              const end = event.currentTarget.selectionEnd ?? 0;
-              const start = event.currentTarget.selectionStart ?? end;
-              cancelCurrentAutocomplete();
-              setAutocompleteError(null);
-              setSelection({ end, start });
-            }}
-            placeholder={pendingAction.button.prompt?.placeholder}
-            value={prompt}
-          />
+          {pendingAction.button.prompt === null ? null : (
+            <>
+              <label htmlFor={promptId}>
+                {pendingAction.button.prompt.label}
+              </label>
+              <input
+                autoFocus
+                disabled={submitting}
+                id={promptId}
+                onChange={(event) => {
+                  const end = event.currentTarget.selectionEnd ?? 0;
+                  const start = event.currentTarget.selectionStart ?? end;
+                  cancelCurrentAutocomplete();
+                  setAutocompleteError(null);
+                  setPreview(null);
+                  setPreviewing(true);
+                  setPrompt(event.target.value);
+                  setSelection({ end, start });
+                }}
+                onSelect={(event) => {
+                  const end = event.currentTarget.selectionEnd ?? 0;
+                  const start = event.currentTarget.selectionStart ?? end;
+                  cancelCurrentAutocomplete();
+                  setAutocompleteError(null);
+                  setSelection({ end, start });
+                }}
+                placeholder={pendingAction.button.prompt.placeholder}
+                value={prompt}
+              />
+            </>
+          )}
           <button
             className="action-button"
             disabled={
@@ -736,49 +747,51 @@ function DashboardItemRow({
             Cancel
           </button>
           {preview === null ? null : (
-            <pre className="prompt-preview">{preview}</pre>
+            <pre className="command-preview">{preview}</pre>
           )}
-          <div className="autocomplete-feedback" aria-live="polite">
-            {connectionStatus === "connected" ? null : (
-              <span>Autocomplete unavailable while disconnected.</span>
-            )}
-            {activeAutocompleteId !== null &&
-            currentAutocomplete === undefined ? (
-              <span>Suggesting…</span>
-            ) : null}
-            {autocompleteError === null ? null : (
-              <span className="autocomplete-error" role="alert">
-                {autocompleteError}
-              </span>
-            )}
-            {currentAutocomplete?.error === null ||
-            currentAutocomplete?.error === undefined ? null : (
-              <span className="autocomplete-error" role="alert">
-                {currentAutocomplete.error}
-              </span>
-            )}
-            {suggestion === null ? null : (
-              <span className="autocomplete-suggestion">
-                <span>{suggestion}</span>
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    const end = suggestion.length;
-                    autocompleteIdRef.current = null;
-                    setActiveAutocompleteId(null);
-                    suppressAutocompleteRef.current = true;
-                    setPreview(null);
-                    setPreviewing(true);
-                    setPrompt(suggestion);
-                    setSelection({ end, start: end });
-                  }}
-                  type="button"
-                >
-                  Use suggestion
-                </button>
-              </span>
-            )}
-          </div>
+          {pendingAction.button.prompt === null ? null : (
+            <div className="autocomplete-feedback" aria-live="polite">
+              {connectionStatus === "connected" ? null : (
+                <span>Autocomplete unavailable while disconnected.</span>
+              )}
+              {activeAutocompleteId !== null &&
+              currentAutocomplete === undefined ? (
+                <span>Suggesting…</span>
+              ) : null}
+              {autocompleteError === null ? null : (
+                <span className="autocomplete-error" role="alert">
+                  {autocompleteError}
+                </span>
+              )}
+              {currentAutocomplete?.error === null ||
+              currentAutocomplete?.error === undefined ? null : (
+                <span className="autocomplete-error" role="alert">
+                  {currentAutocomplete.error}
+                </span>
+              )}
+              {suggestion === null ? null : (
+                <span className="autocomplete-suggestion">
+                  <span>{suggestion}</span>
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      const end = suggestion.length;
+                      autocompleteIdRef.current = null;
+                      setActiveAutocompleteId(null);
+                      suppressAutocompleteRef.current = true;
+                      setPreview(null);
+                      setPreviewing(true);
+                      setPrompt(suggestion);
+                      setSelection({ end, start: end });
+                    }}
+                    type="button"
+                  >
+                    Use suggestion
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
         </form>
       )}
       {actionError === null ? null : (
@@ -920,7 +933,7 @@ function RunDrawer({
 }) {
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  const active = run.status === "queued" || run.status === "running";
+  const active = isRunActive(run);
   const elapsedSeconds = useRunElapsed(active);
 
   return (
@@ -1078,23 +1091,6 @@ function refreshStatusLabel(status: SectionSnapshot["status"]): string {
 
 function relativeTimeLabel(value: number, unit: string): string {
   return `${value.toString()} ${unit}${value === 1 ? "" : "s"} ago`;
-}
-
-function runStatusLabel(status: RunSnapshot["status"]): string {
-  switch (status) {
-    case "cancelled":
-      return "Cancelled";
-    case "completed":
-      return "Completed";
-    case "failed":
-      return "Failed";
-    case "queued":
-      return "Queued";
-    case "running":
-      return "Running";
-    case "timed_out":
-      return "Timed out";
-  }
 }
 
 function usePageVisibility(): boolean {

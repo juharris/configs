@@ -85,6 +85,10 @@
             "null"
           ]
         },
+        "detached": {
+          "default": false,
+          "type": "boolean"
+        },
         "label": {
           "type": "string"
         },
@@ -213,6 +217,12 @@
     "PromptConfig": {
       "additionalProperties": false,
       "properties": {
+        "default": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
         },

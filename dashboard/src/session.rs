@@ -25,10 +25,10 @@ pub struct SessionServices {
 
 /// Authenticates one browser tab and owns its socket reader and bounded writer.
 pub async fn run(mut socket: WebSocket, services: SessionServices) {
-    let Some(last_event_sequence) = authenticate(&mut socket, &services.tokens).await else {
+    let Some(authentication) = authenticate(&mut socket, &services.tokens).await else {
         return;
     };
-    let Ok(registered) = services.connections.register() else {
+    let Ok(registered) = services.connections.register(authentication.connection_id) else {
         send_and_close(
             &mut socket,
             error_message(
@@ -39,12 +39,13 @@ pub async fn run(mut socket: WebSocket, services: SessionServices) {
         .await;
         return;
     };
-    let connection_id = registered.id;
+    let connection_id = registered.connection_id.clone();
+    let socket_id = registered.id;
     let active_configuration = match services.config_service.snapshot() {
         Ok(snapshot) => snapshot.map(|snapshot| snapshot.transport()),
         Err(error) => {
             tracing::error!(%error, "could not read active configuration for a connection");
-            services.connections.unregister(connection_id);
+            services.connections.unregister(socket_id);
             send_and_close(
                 &mut socket,
                 error_message(
@@ -65,7 +66,39 @@ pub async fn run(mut socket: WebSocket, services: SessionServices) {
         Ok(snapshot) => snapshot,
         Err(error) => {
             tracing::error!(%error, "could not read dashboard state for a connection");
-            services.connections.unregister(connection_id);
+            services.connections.unregister(socket_id);
+            send_and_close(
+                &mut socket,
+                error_message(
+                    ErrorCode::Internal,
+                    "The dashboard service could not synchronize the connection.",
+                ),
+            )
+            .await;
+            return;
+        }
+    };
+    let run = match services.process_service.snapshot(&connection_id) {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            tracing::error!(%error, "could not read active run state for a connection");
+            services.connections.unregister(socket_id);
+            send_and_close(
+                &mut socket,
+                error_message(
+                    ErrorCode::Internal,
+                    "The dashboard service could not synchronize the connection.",
+                ),
+            )
+            .await;
+            return;
+        }
+    };
+    let runs = match services.process_service.history() {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            tracing::error!(%error, "could not read command run history for a connection");
+            services.connections.unregister(socket_id);
             send_and_close(
                 &mut socket,
                 error_message(
@@ -79,20 +112,25 @@ pub async fn run(mut socket: WebSocket, services: SessionServices) {
     };
     let ready = ServerMessage::ConnectionReady {
         active_configuration,
-        connection_id: format!("connection-{connection_id}"),
+        connection_id: connection_id.clone(),
         dashboard,
         event_sequence: services.connections.current_event_sequence(),
         protocol_version: PROTOCOL_VERSION,
+        run,
+        runs,
         setup_status,
     };
     if send_message(&mut socket, &ready).await.is_err() {
-        services.connections.unregister(connection_id);
+        services.connections.unregister(socket_id);
         return;
     }
-    if let Ok(events) = services.connections.replay_after(last_event_sequence) {
+    if let Ok(events) = services
+        .connections
+        .replay_after(authentication.last_event_sequence)
+    {
         for event in events {
             if send_message(&mut socket, &event).await.is_err() {
-                services.connections.unregister(connection_id);
+                services.connections.unregister(socket_id);
                 return;
             }
         }
@@ -124,7 +162,7 @@ pub async fn run(mut socket: WebSocket, services: SessionServices) {
                 break;
             }
             services.connections.send(
-                connection_id,
+                socket_id,
                 error_message(ErrorCode::InvalidMessage, "Send JSON text messages only."),
             );
             continue;
@@ -133,7 +171,7 @@ pub async fn run(mut socket: WebSocket, services: SessionServices) {
             Ok(message) => message,
             Err(_) => {
                 services.connections.send(
-                    connection_id,
+                    socket_id,
                     error_message(
                         ErrorCode::InvalidMessage,
                         "The dashboard request was not valid.",
@@ -148,7 +186,7 @@ pub async fn run(mut socket: WebSocket, services: SessionServices) {
         } = client_message
         else {
             services.connections.send(
-                connection_id,
+                socket_id,
                 error_message(
                     ErrorCode::InvalidMessage,
                     "The connection is already authenticated.",
@@ -158,12 +196,16 @@ pub async fn run(mut socket: WebSocket, services: SessionServices) {
         };
         if request_id.trim().is_empty() {
             services.connections.send(
-                connection_id,
+                socket_id,
                 error_message(ErrorCode::InvalidMessage, "The request ID cannot be blank."),
             );
             continue;
         }
-        let response = match services.router.route(connection_id, request).await {
+        let response = match services
+            .router
+            .route(socket_id, &connection_id, request)
+            .await
+        {
             Ok(response) => ServerMessage::Response {
                 request_id,
                 response,
@@ -176,15 +218,23 @@ pub async fn run(mut socket: WebSocket, services: SessionServices) {
                 retryable: error.retryable,
             },
         };
-        services.connections.send(connection_id, response);
+        services.connections.send(socket_id, response);
     }
 
-    services.process_service.cancel_autocompletes(connection_id);
-    services.connections.unregister(connection_id);
+    services.process_service.cancel_autocompletes(socket_id);
+    services.connections.unregister(socket_id);
     writer.abort();
 }
 
-async fn authenticate(socket: &mut WebSocket, tokens: &BootstrapTokenStore) -> Option<Option<u64>> {
+struct Authentication {
+    connection_id: Option<String>,
+    last_event_sequence: Option<u64>,
+}
+
+async fn authenticate(
+    socket: &mut WebSocket,
+    tokens: &BootstrapTokenStore,
+) -> Option<Authentication> {
     let message = tokio::time::timeout(AUTHENTICATION_TIMEOUT, socket.recv())
         .await
         .ok()
@@ -202,6 +252,7 @@ async fn authenticate(socket: &mut WebSocket, tokens: &BootstrapTokenStore) -> O
         return None;
     };
     let Ok(ClientMessage::Authenticate {
+        connection_id,
         last_event_sequence,
         protocol_version,
         token,
@@ -239,7 +290,10 @@ async fn authenticate(socket: &mut WebSocket, tokens: &BootstrapTokenStore) -> O
         .await;
         return None;
     }
-    Some(last_event_sequence)
+    Some(Authentication {
+        connection_id,
+        last_event_sequence,
+    })
 }
 
 fn error_message(code: ErrorCode, message: &str) -> ServerMessage {
