@@ -66,9 +66,9 @@ Release builds use [rust-embed](https://docs.rs/rust-embed/latest/rust_embed/) t
 | Tauri 2 + React/Vite | One packaged desktop application and native local-process access | Hosts the UI in a system WebView rather than the user's normal browser | Not selected |
 | Leptos full stack | Rust across client and server | Adds Rust/Wasm UI complexity without improving this local-command use case | Not selected |
 
-The release server binds to `127.0.0.1` on a stable application port and opens the canonical `http://127.0.0.1:<port>` URL in the default browser.
+The release server binds to `127.0.0.1` on stable public port `5173` and opens the canonical `http://127.0.0.1:5173` URL in the default browser.
 It fails clearly when the port is occupied instead of silently selecting a random port.
-The development server also uses a stable port and the `127.0.0.1` host rather than alternating between that address and `localhost`.
+The Vite development server uses the same public host and port, with `strictPort` enabled, and proxies to the development-only Axum listener on `127.0.0.1:3000`.
 A stable origin is required because browser storage is scoped to the scheme, host, and port and must remain available after a restart.
 Remote access would materially change the command-execution threat model and is outside the first release.
 
@@ -210,6 +210,8 @@ The schema is generated output, not another feature.
 Its `.optify/schema.json` location follows Optify's documented [custom-schema convention](https://github.com/juharris/optify/blob/main/README.md#custom-schemas).
 The feature-file wrapper references Optify's standard schema for `imports`, `metadata`, and other envelope fields, while its `options` schema is generated from the dashboard Rust types.
 The application passes this one schema path to the multi-directory watcher, so every feature file in every selected directory is checked against the same contract and external directories do not need another runtime schema copy.
+Release executables embed the committed generated schema and materialize it in a process-lifetime temporary directory because Optify 1.3.3 accepts a filesystem path and rereads that path when its watcher rebuilds.
+The configuration service owns that temporary directory for at least as long as any active watcher can use it.
 
 Optify recursively loads `.json`, `.yaml`, and `.yml` files below every selected directory.
 Selected directories form one feature namespace, so canonical feature names should be unique across them.

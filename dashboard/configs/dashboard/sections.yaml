@@ -1,0 +1,26 @@
+options:
+  sections:
+    - id: authored_pull_requests
+      title: My pull requests
+      item_kind: pull_request
+      command: >-
+        gh search prs
+        'author:@me state:open'
+        --json assignees,author,isDraft,labels,number,repository,state,title,updatedAt,url
+
+    - id: requested_reviews
+      title: Reviews requested
+      item_kind: pull_request
+      command: >-
+        gh search prs
+        'review-requested:@me state:open'
+        --json assignees,author,isDraft,labels,number,repository,state,title,updatedAt,url
+
+    - id: assigned_issues
+      title: Assigned issues
+      item_kind: issue
+      command: >-
+        gh search issues
+        'assignee:@me state:open'
+        --json assignees,author,labels,number,repository,state,title,updatedAt,url
+

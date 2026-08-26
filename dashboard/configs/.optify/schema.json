@@ -1,0 +1,323 @@
+{
+  "$defs": {
+    "AppearanceConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "theme": {
+          "$ref": "#/$defs/Theme"
+        }
+      },
+      "required": [
+        "theme"
+      ],
+      "type": "object"
+    },
+    "ApplicationConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "command_timeout_seconds": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "default_refresh_seconds": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_concurrent_commands": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_output_bytes_per_run": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "shell": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "command_timeout_seconds",
+        "default_refresh_seconds",
+        "max_concurrent_commands",
+        "max_output_bytes_per_run",
+        "shell"
+      ],
+      "type": "object"
+    },
+    "AutocompleteConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "debounce_milliseconds": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "instruction": {
+          "type": "string"
+        },
+        "minimum_characters": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "command",
+        "debounce_milliseconds",
+        "instruction",
+        "minimum_characters"
+      ],
+      "type": "object"
+    },
+    "ButtonConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "confirm": {
+          "default": false,
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PromptConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "working_directory": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "type": "object"
+    },
+    "ButtonListsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "advanced": {
+          "items": {
+            "$ref": "#/$defs/ButtonConfig"
+          },
+          "type": "array"
+        },
+        "always": {
+          "items": {
+            "$ref": "#/$defs/ButtonConfig"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "advanced",
+        "always"
+      ],
+      "type": "object"
+    },
+    "ButtonsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "issues": {
+          "$ref": "#/$defs/ButtonListsConfig"
+        },
+        "pull_requests": {
+          "$ref": "#/$defs/ButtonListsConfig"
+        }
+      },
+      "required": [
+        "issues",
+        "pull_requests"
+      ],
+      "type": "object"
+    },
+    "ItemKind": {
+      "enum": [
+        "issue",
+        "pull_request"
+      ],
+      "type": "string"
+    },
+    "PartialRootConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "appearance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppearanceConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "application": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApplicationConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "autocomplete": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutocompleteConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "buttons": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ButtonsConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "repositories": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RepositoryConfig"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/SectionConfig"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "PromptConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "placeholder": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "placeholder"
+      ],
+      "type": "object"
+    },
+    "RepositoryConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "SectionConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "item_kind": {
+          "$ref": "#/$defs/ItemKind"
+        },
+        "refresh_seconds": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "command",
+        "id",
+        "item_kind",
+        "title"
+      ],
+      "type": "object"
+    },
+    "Theme": {
+      "enum": [
+        "dark",
+        "light",
+        "system"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://personal-dashboard.local/schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {
+      "$ref": "https://raw.githubusercontent.com/juharris/optify/refs/heads/main/schemas/feature_file.json"
+    }
+  ],
+  "description": "Optify feature file whose options are validated by Personal Dashboard.",
+  "properties": {
+    "options": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PartialRootConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "title": "Personal Dashboard Optify Feature",
+  "type": "object"
+}

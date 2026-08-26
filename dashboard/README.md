@@ -12,7 +12,9 @@ The light, dark, or system theme is configured in an Optify feature file with th
 Sections, commands, buttons, prompts, repositories, and other behavior remain in the configuration files.
 A single start command launches the local service and opens the dashboard in the browser.
 
-The implementation has not been scaffolded yet.
+Delivery phases 1 through 3 are implemented.
+The repository contains the Axum and React/Vite scaffold, the Options page and browser store, typed Optify configuration loading and reloads, generated schema and transport artifacts, example feature files, embedded release assets, and authenticated WebSocket synchronization.
+The dashboard item and command workflows remain in later delivery phases.
 
 ## Documentation
 

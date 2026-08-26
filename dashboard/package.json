@@ -1,0 +1,51 @@
+{
+  "name": "personal-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.22.2",
+    "pnpm": "10.28.0"
+  },
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "artifacts:check": "cargo run --quiet --bin generate_artifacts -- --check",
+    "bindings:generate": "cargo run --quiet --bin generate_artifacts",
+    "build": "pnpm run frontend:build && cargo build --release --locked",
+    "check": "pnpm run format:check && cargo clippy --all-targets --all-features -- -D warnings && pnpm run typecheck && pnpm run lint && pnpm run artifacts:check && pnpm run test",
+    "dev": "concurrently --kill-others-on-fail --names backend,frontend \"cargo run --bin personal-dashboard\" \"vite\"",
+    "format": "cargo fmt --all && prettier --write \"src/**/*.{css,ts,tsx}\" \"*.{js,json,ts}\"",
+    "format:check": "cargo fmt --all -- --check && prettier --check \"src/**/*.{css,ts,tsx}\" \"*.{js,json,ts}\"",
+    "frontend:build": "vite build",
+    "lint": "eslint . --max-warnings 0",
+    "schema:generate": "cargo run --quiet --bin generate_artifacts",
+    "start": "./target/release/personal-dashboard",
+    "start:verify": "./target/release/personal-dashboard --no-open",
+    "test": "cargo test --all-targets && vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "6.1.0",
+    "vite": "8.2.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.5",
+    "@types/node": "22.19.21",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "concurrently": "10.0.5",
+    "eslint": "10.9.1",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.4",
+    "globals": "17.11.0",
+    "jsdom": "30.0.1",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.67.0",
+    "vitest": "4.1.11"
+  }
+}

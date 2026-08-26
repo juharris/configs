@@ -1,7 +1,6 @@
 # Personal Dashboard Development Notes
 
-The application has not been scaffolded yet.
-The commands below define the intended contributor workflow and will become available as the implementation described in [SPEC.md](SPEC.md) lands.
+The commands below are the contributor interface for the implemented application scaffold, configuration system, and authenticated browser connection.
 
 ## Prerequisites
 
@@ -25,8 +24,8 @@ pnpm --dir dashboard run dev
 
 `pnpm --dir dashboard run dev` starts Axum and Vite together and stops both if either fails.
 Vite proxies `/bootstrap` and `/ws` to Axum, so contributors do not need a second terminal or a separately managed backend.
-Open the loopback URL printed by Vite in a normal browser.
-The development origin uses a stable port so Optify setup persists across restarts.
+Open `http://127.0.0.1:5173`, the loopback URL printed by Vite, in a normal browser.
+Vite keeps that stable public origin and proxies application traffic to Axum on `127.0.0.1:3000`, so Optify setup persists across restarts.
 If that port is occupied, stop the conflicting process and rerun the command rather than switching to a random port.
 
 On first use, open the Options page and add one or more absolute configuration-directory paths under **Optify directories**.
@@ -128,6 +127,8 @@ A personal or private-work configuration repository outside this workspace shoul
 
 The backend passes the ordered Optify directories to [`OptionsWatcher::build_from_directories_with_schema_and_options`](https://docs.rs/optify/1.3.3/optify/provider/struct.OptionsWatcher.html#method.build_from_directories_with_schema_and_options) with the generated schema and passes the ordered feature list to `get_all_options`.
 Its [`add_listener`](https://docs.rs/optify/1.3.3/optify/provider/struct.OptionsWatcher.html#method.add_listener) callback triggers an application configuration reload and a WebSocket UI refresh after Optify successfully rebuilds the provider.
+The release executable embeds the generated schema, writes it to a process-lifetime temporary directory at startup, and keeps that directory alive while Optify may reread the schema during watcher rebuilds.
+This lets one packaged schema validate configuration directories outside the repository.
 An invalid edit leaves the previous provider and UI configuration active; correct the editor diagnostic or server-log error and save again.
 
 Changing Optify directories or features creates and validates a candidate watcher before replacing the active one.
@@ -156,6 +157,7 @@ pnpm --dir dashboard run start
 ```
 
 `pnpm --dir dashboard run start` launches the compiled Rust server, serves the embedded frontend, and opens its loopback URL.
+For automated startup verification without opening a browser, run `pnpm --dir dashboard run start:verify`; it serves the same embedded application on the same stable port.
 
 Backend tests must use fake executables and checked-in command-output fixtures.
 They must not require live GitHub or model-provider access.

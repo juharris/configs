@@ -1,0 +1,8 @@
+options:
+  application:
+    command_timeout_seconds: 1800
+    default_refresh_seconds: 300
+    max_concurrent_commands: 4
+    max_output_bytes_per_run: 10485760
+    shell: /bin/bash
+

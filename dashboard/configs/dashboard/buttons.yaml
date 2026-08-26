@@ -1,0 +1,43 @@
+options:
+  buttons:
+    issues:
+      always:
+        - label: Investigate
+          command: >-
+            pi --print 'Investigate {item.url}. {prompt}'
+          prompt:
+            label: Additional instructions
+            placeholder: Add context or constraints
+          working_directory: '{repository.path}'
+      advanced:
+        - label: Start work
+          command: >-
+            claude --print 'Implement {item.url}. {prompt}'
+          confirm: true
+          prompt:
+            label: Implementation details
+            placeholder: Add constraints or acceptance criteria
+          working_directory: '{repository.path}'
+        - label: Open
+          url: '{item.url}'
+
+    pull_requests:
+      always:
+        - label: Review
+          command: >-
+            codex exec '/review {item.url} {prompt}'
+          prompt:
+            label: Review focus
+            placeholder: Add areas to inspect closely
+          working_directory: '{repository.path}'
+      advanced:
+        - label: Second opinion
+          command: >-
+            claude --print 'Review {item.url}. {prompt}'
+          prompt:
+            label: Review focus
+            placeholder: Add areas to inspect closely
+          working_directory: '{repository.path}'
+        - label: Open
+          url: '{item.url}'
+
