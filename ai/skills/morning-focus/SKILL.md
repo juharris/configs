@@ -16,6 +16,19 @@ Gather signals from GitHub, Slack, Google Calendar, and Shopify internal Vault i
 - **Don't parrot raw data.** Every item in the output must carry Justin's interpretation (why it matters, who's blocked, what's stale), not just a title and link.
 - **Be terse.** Each bullet is one line. No preamble, no closing summary.
 
+## Step 0: Name and verify the conversation
+
+Before gathering any signals:
+
+1. Run `date '+%a %b %d'`.
+2. Rename the current chat, task, or conversation with the host's native title capability, using the title `[daily] <day> <month> <date>`, for example `[daily] Tue Aug 25`.
+   When running in Codex, call `codex_app__set_thread_title` with that title and omit `threadId` to target the current task.
+3. Wait for the rename operation to return successfully before continuing.
+
+Do not defer the rename until after gathering signals or writing the briefing.
+Treat a rename operation that has not completed within 30 seconds as hung, cancel it, and retry once with the same title.
+If the retry fails or hangs for another 30 seconds, stop and report the title failure instead of producing the briefing.
+
 ## Step 1: Compute dates and look up identities (in parallel)
 
 Run all of the following in one tool-call batch:
@@ -23,8 +36,6 @@ Run all of the following in one tool-call batch:
 1. `date +%Y-%m-%d` — today's date.
 2. `date -v-3d +%Y-%m-%dT%H:%M:%S%z` — 3-day lookback cutoff (macOS).
 3. Get Justin's Vault profile (current user). The response already includes his **Slack ID** and **manager's ID and name** — you do NOT need a separate Slack user lookup for Justin.
-
-Name the chat "[daily] {`date '+%a %b %d'`}", filling in the current date, for example `[daily] Tue Aug 25`.
 
 ## Step 2: Gather signals (in parallel)
 
