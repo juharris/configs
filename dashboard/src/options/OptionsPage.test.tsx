@@ -6,6 +6,10 @@ import type { ActiveConfiguration } from "../generated/transport";
 import { OptionsPage } from "./OptionsPage";
 
 const acceptedConfiguration: ActiveConfiguration = {
+  autocomplete: {
+    debounceMilliseconds: 300,
+    minimumCharacters: 20,
+  },
   revision: 8,
   setup: {
     configDirectories: ["/work", "/personal"],

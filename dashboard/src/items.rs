@@ -16,7 +16,7 @@ use url::Url;
 
 use crate::commands::CommandTemplate;
 use crate::config::ItemKind;
-use crate::messages::{DashboardItem, DashboardLabel};
+use crate::messages::{DashboardActor, DashboardItem, DashboardLabel};
 
 const MAX_ERROR_DETAIL_CHARACTERS: usize = 2_000;
 const OUTPUT_CHUNK_BYTES: usize = 8 * 1024;
@@ -232,6 +232,37 @@ fn bounded_stderr_detail(stderr: &[u8]) -> Option<String> {
     Some(format!("…\n{}", retained.trim_start()))
 }
 
+fn dashboard_actors(
+    value: &Value,
+    item: usize,
+) -> Result<Vec<DashboardActor>, ItemValidationError> {
+    value
+        .as_array()
+        .ok_or_else(|| item_error(item, "approvedBy must be an array"))?
+        .iter()
+        .map(|actor| {
+            let login = actor_login(actor, item)?
+                .ok_or_else(|| item_error(item, "an approver cannot be null"))?
+                .to_owned();
+            let url = match actor {
+                Value::Object(actor) => match actor.get("url") {
+                    None | Some(Value::Null) => None,
+                    Some(Value::String(url)) => {
+                        let url = nonblank(url, item, "approver URL")?;
+                        validate_https_url(url, item, "approver URL")?;
+                        Some(url.to_owned())
+                    }
+                    Some(_) => {
+                        return Err(item_error(item, "approver URL must be a string"));
+                    }
+                },
+                _ => None,
+            };
+            Ok(DashboardActor { login, url })
+        })
+        .collect()
+}
+
 fn item_error(item: usize, message: impl Into<String>) -> ItemValidationError {
     ItemValidationError {
         item: item + 1,
@@ -306,6 +337,9 @@ fn normalize_item(
     let item = value
         .as_object()
         .ok_or_else(|| item_error(index, "each item must be an object"))?;
+    let approved_by = item
+        .get("approvedBy")
+        .map_or_else(|| Ok(Vec::new()), |value| dashboard_actors(value, index))?;
     let assignees = logins(required(item, "assignees", index)?, index)?;
     let author = actor_login(required(item, "author", index)?, index)?.map(str::to_owned);
     let is_draft = match item_kind {
@@ -333,13 +367,11 @@ fn normalize_item(
     OffsetDateTime::parse(updated_at, &Rfc3339)
         .map_err(|_| item_error(index, "updatedAt must be an RFC 3339 timestamp"))?;
     let url = required_string(item, "url", index)?;
-    let parsed_url = Url::parse(url).map_err(|_| item_error(index, "url must be valid HTTPS"))?;
-    if parsed_url.scheme() != "https" {
-        return Err(item_error(index, "url must be valid HTTPS"));
-    }
+    validate_https_url(url, index, "url")?;
 
     Ok(DashboardItem {
         advanced_buttons: Vec::new(),
+        approved_by,
         assignees,
         always_buttons: Vec::new(),
         author,
@@ -417,6 +449,15 @@ fn required_string<'a>(
         .as_str()
         .ok_or_else(|| item_error(item, format!("{field} must be a string")))?;
     nonblank(value, item, field)
+}
+
+fn validate_https_url(value: &str, item: usize, field: &str) -> Result<(), ItemValidationError> {
+    let parsed =
+        Url::parse(value).map_err(|_| item_error(item, format!("{field} must be valid HTTPS")))?;
+    if parsed.scheme() != "https" {
+        return Err(item_error(item, format!("{field} must be valid HTTPS")));
+    }
+    Ok(())
 }
 
 fn reserve_bytes(remaining: &AtomicUsize, requested: usize) -> usize {
@@ -543,11 +584,17 @@ mod tests {
         assert_eq!(items[0].repository, "example/project");
         assert_eq!(items[0].number, 42);
         assert_eq!(items[0].author.as_deref(), Some("octocat"));
+        assert_eq!(items[0].approved_by[0].login, "approver");
+        assert_eq!(
+            items[0].approved_by[0].url.as_deref(),
+            Some("https://github.com/approver")
+        );
         assert_eq!(items[0].assignees, ["reviewer"]);
         assert_eq!(items[0].labels[0].name, "reviewed");
         assert_eq!(items[0].is_draft, Some(false));
         assert_eq!(items[0].source, None);
         assert_eq!(items[1].author, None);
+        assert!(items[1].approved_by.is_empty());
     }
 
     #[test]

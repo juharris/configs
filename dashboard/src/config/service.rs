@@ -11,7 +11,7 @@ use thiserror::Error;
 use tokio::sync::{mpsc, watch};
 
 use super::{RootConfig, RuntimeSchema, ValidatedRootConfig};
-use crate::messages::{ActiveConfiguration, OptifySetup};
+use crate::messages::{ActiveConfiguration, AutocompleteSettings, OptifySetup};
 
 const WATCHER_DEBOUNCE: Duration = Duration::from_millis(250);
 const RELOAD_COALESCE: Duration = Duration::from_millis(75);
@@ -26,6 +26,10 @@ pub struct ConfigurationSnapshot {
 impl ConfigurationSnapshot {
     pub fn transport(&self) -> ActiveConfiguration {
         ActiveConfiguration {
+            autocomplete: AutocompleteSettings {
+                debounce_milliseconds: self.configuration.root.autocomplete.debounce_milliseconds,
+                minimum_characters: self.configuration.root.autocomplete.minimum_characters,
+            },
             revision: self.revision,
             setup: self.setup.clone(),
             theme: self.configuration.root.appearance.theme,
@@ -367,6 +371,7 @@ mod tests {
         assert_eq!(unchanged.revision, first.revision);
         assert_eq!(unchanged.configuration.root.appearance.theme, Theme::Dark);
         assert_eq!(unchanged.configuration.root.sections.len(), 1);
+        assert!(unchanged.configuration.root.sections[0].collapsed);
 
         let invalid_setup = OptifySetup {
             config_directories: vec![fixture.base.path().display().to_string()],
@@ -411,6 +416,14 @@ mod tests {
 
         assert_eq!(snapshot.configuration.root.appearance.theme, Theme::System);
         assert_eq!(snapshot.configuration.root.sections.len(), 3);
+        assert!(
+            snapshot
+                .configuration
+                .root
+                .sections
+                .iter()
+                .all(|section| !section.collapsed)
+        );
     }
 
     #[test]
@@ -513,7 +526,7 @@ mod tests {
             fs::write(
                 self.override_directory.path().join("override.yaml"),
                 format!(
-                    "options:\n  appearance:\n    theme: {theme}\n  sections:\n    - cache_ttl_seconds: 300\n      command: printf '[]'\n      id: {section_id}\n      item_kind: issue\n      items_per_page: 6\n      title: Items\n"
+                    "options:\n  appearance:\n    theme: {theme}\n  sections:\n    - cache_ttl_seconds: 300\n      collapsed: true\n      command: printf '[]'\n      id: {section_id}\n      item_kind: issue\n      items_per_page: 6\n      title: Items\n"
                 ),
             )
             .unwrap();

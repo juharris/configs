@@ -40,6 +40,11 @@ impl TemplateValues {
         }
     }
 
+    pub fn with_autocomplete_request(mut self, request: &str) -> Self {
+        self.autocomplete_request = Some(request.to_owned());
+        self
+    }
+
     pub fn with_prompt(mut self, prompt: Option<&str>) -> Self {
         self.prompt = prompt.map(str::to_owned);
         self
@@ -479,9 +484,11 @@ fn shell_quote(value: &str) -> String {
 }
 
 fn is_placeholder_name(value: &str) -> bool {
-    !value.is_empty()
-        && value
-            .chars()
+    let mut characters = value.chars();
+    characters
+        .next()
+        .is_some_and(|character| character.is_ascii_alphabetic() || character == '_')
+        && characters
             .all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '_'))
 }
 
@@ -558,12 +565,16 @@ mod tests {
     }
 
     #[test]
-    fn preserves_bash_parameter_expansion() {
-        let template =
-            CommandTemplate::compile("printf '%s' \"${VALUE:-fallback}\"", &Placeholder::button())
-                .unwrap();
+    fn preserves_shell_parameter_expansion_and_regex_quantifiers() {
+        let template = CommandTemplate::compile(
+            r#"if [[ $line =~ 'thread/start response:.*id: "([0-9a-f-]{36})"' ]]; then
+  open "codex://threads/${match[1]}"
+fi"#,
+            &Placeholder::button(),
+        )
+        .unwrap();
 
-        assert_eq!(template.script(), "printf '%s' \"${VALUE:-fallback}\"");
+        assert_eq!(template.script(), template.source());
     }
 
     #[test]

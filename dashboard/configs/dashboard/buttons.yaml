@@ -12,7 +12,6 @@ options:
         - label: Start work
           command: >-
             cd; claude --print 'Implement {item.url}. {prompt}'
-          confirm: true
           prompt:
             label: Implementation details
             placeholder: Add constraints or acceptance criteria

@@ -38,6 +38,19 @@ pub fn decorate_item(configuration: &ConfigurationSnapshot, item: &mut Dashboard
     item.always_buttons = presentations(item, &buttons.always, &validated.always);
 }
 
+pub fn prompt_button_label(
+    configuration: &ConfigurationSnapshot,
+    item_kind: ItemKind,
+    list: ButtonList,
+    index: usize,
+) -> Result<&str, ButtonError> {
+    let (button, _) = configured_button(configuration, item_kind, list, index)?;
+    if button.command.is_none() || button.prompt.is_none() {
+        return Err(ButtonError::InvalidPrompt);
+    }
+    Ok(&button.label)
+}
+
 pub fn resolve_command(
     configuration: &ConfigurationSnapshot,
     item: &DashboardItem,
@@ -45,13 +58,7 @@ pub fn resolve_command(
     index: usize,
     prompt: Option<&str>,
 ) -> Result<ResolvedCommand, ButtonError> {
-    let (buttons, validated) = button_lists(configuration, item.item_kind);
-    let (button, validated) = match list {
-        ButtonList::Advanced => (buttons.advanced.get(index), validated.advanced.get(index)),
-        ButtonList::Always => (buttons.always.get(index), validated.always.get(index)),
-    };
-    let button = button.ok_or(ButtonError::InvalidButton)?;
-    let validated = validated.ok_or(ButtonError::InvalidButton)?;
+    let (button, validated) = configured_button(configuration, item.item_kind, list, index)?;
     if button.command.is_none() {
         return Err(ButtonError::InvalidButton);
     }
@@ -97,6 +104,23 @@ pub fn resolve_command(
     })
 }
 
+fn configured_button(
+    configuration: &ConfigurationSnapshot,
+    item_kind: ItemKind,
+    list: ButtonList,
+    index: usize,
+) -> Result<(&ButtonConfig, &ValidatedButton), ButtonError> {
+    let (buttons, validated) = button_lists(configuration, item_kind);
+    let (button, validated) = match list {
+        ButtonList::Advanced => (buttons.advanced.get(index), validated.advanced.get(index)),
+        ButtonList::Always => (buttons.always.get(index), validated.always.get(index)),
+    };
+    Ok((
+        button.ok_or(ButtonError::InvalidButton)?,
+        validated.ok_or(ButtonError::InvalidButton)?,
+    ))
+}
+
 fn button_lists(
     configuration: &ConfigurationSnapshot,
     item_kind: ItemKind,
@@ -136,7 +160,6 @@ fn presentation(
         Err(error) => (true, error.to_string(), None),
     };
     DashboardButton {
-        confirm: button.confirm,
         disabled,
         index,
         label: button.label.clone(),

@@ -1,5 +1,6 @@
 import type {
   ActiveConfiguration,
+  AutocompleteSnapshot,
   BootstrapResponse,
   ButtonList,
   ClientMessage,
@@ -13,12 +14,25 @@ import type {
   ServerResponse,
 } from "./generated/transport";
 
-const PROTOCOL_VERSION = 2;
+const PROTOCOL_VERSION = 7;
 const RECONNECT_DELAYS = [250, 500, 1_000, 2_000, 5_000] as const;
 const REQUEST_TIMEOUT = 10_000;
 
 export type ConnectionStatus =
   "connected" | "connecting" | "disconnected" | "reconnecting";
+
+export type AutocompleteRequestParameters = {
+  autocompleteId: string;
+  buttonIndex: number;
+  buttonList: ButtonList;
+  configurationRevision: number;
+  draft: string;
+  editorId: string;
+  item: ItemReference;
+  sectionId: string;
+  selectionEnd: number;
+  selectionStart: number;
+};
 
 type PendingRequest = {
   reject: (error: Error) => void;
@@ -28,6 +42,7 @@ type PendingRequest = {
 
 type WebSocketClientOptions = {
   getSetup: () => OptifySetup | null;
+  onAutocomplete: (autocomplete: AutocompleteSnapshot) => void;
   onConfiguration: (configuration: ActiveConfiguration) => void;
   onDashboard: (dashboard: DashboardSnapshot) => void;
   onError: (message: string) => void;
@@ -38,6 +53,7 @@ type WebSocketClientOptions = {
 /** Owns bootstrap authentication, request correlation, and reconnect behavior. */
 export class WebSocketClient {
   readonly #getSetup: () => OptifySetup | null;
+  readonly #onAutocomplete: (autocomplete: AutocompleteSnapshot) => void;
   readonly #onConfiguration: (configuration: ActiveConfiguration) => void;
   readonly #onDashboard: (dashboard: DashboardSnapshot) => void;
   readonly #onError: (message: string) => void;
@@ -55,6 +71,7 @@ export class WebSocketClient {
 
   constructor(options: WebSocketClientOptions) {
     this.#getSetup = options.getSetup;
+    this.#onAutocomplete = options.onAutocomplete;
     this.#onConfiguration = options.onConfiguration;
     this.#onDashboard = options.onDashboard;
     this.#onError = options.onError;
@@ -83,6 +100,21 @@ export class WebSocketClient {
         );
       }
     });
+  }
+
+  cancelAutocomplete(editorId: string): Promise<void> {
+    return this.#sendRequest({ editorId, type: "cancel_autocomplete" }).then(
+      (response) => {
+        if (
+          response.type !== "autocomplete_cancellation_accepted" ||
+          response.editorId !== editorId
+        ) {
+          throw new Error(
+            "The dashboard service returned an unexpected response.",
+          );
+        }
+      },
+    );
   }
 
   previewButton(
@@ -126,6 +158,25 @@ export class WebSocketClient {
         );
       }
       return response.refresh;
+    });
+  }
+
+  requestAutocomplete(
+    parameters: AutocompleteRequestParameters,
+  ): Promise<void> {
+    return this.#sendRequest({
+      ...parameters,
+      type: "request_autocomplete",
+    }).then((response) => {
+      if (
+        response.type !== "autocomplete_request_accepted" ||
+        response.autocompleteId !== parameters.autocompleteId ||
+        response.editorId !== parameters.editorId
+      ) {
+        throw new Error(
+          "The dashboard service returned an unexpected response.",
+        );
+      }
     });
   }
 
@@ -336,6 +387,9 @@ export class WebSocketClient {
         }
         this.#lastEventSequence = message.sequence;
         switch (message.event.type) {
+          case "autocomplete_updated":
+            this.#onAutocomplete(message.event.autocomplete);
+            break;
           case "configuration_reloaded":
             this.#onConfiguration(message.event.configuration);
             break;

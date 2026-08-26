@@ -5,6 +5,12 @@
         "login": "reviewer"
       }
     ],
+    "approvedBy": [
+      {
+        "login": "approver",
+        "url": "https://github.com/approver"
+      }
+    ],
     "author": {
       "login": "octocat"
     },

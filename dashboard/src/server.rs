@@ -106,6 +106,7 @@ fn application(
             config_service: config_service.clone(),
             connections,
             dashboard_service: dashboard_service.clone(),
+            process_service: process_service.clone(),
             router: MessageRouter::new(config_service, dashboard_service, process_service),
             tokens: Arc::new(BootstrapTokenStore::new()),
         },

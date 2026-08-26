@@ -57,7 +57,7 @@ Rust types define the configuration contract, and a generated local JSON Schema 
 ## Framework decision
 
 Use [Axum](https://docs.rs/axum/latest/axum/) for a loopback-only Rust HTTP server, with React, TypeScript, and Vite for the frontend.
-Axum's [WebSocket support](https://docs.rs/axum/latest/axum/extract/ws/) provides the full-duplex connection needed for requests, command output, autocomplete, cancellation, acknowledgements, and server-initiated confirmation requests.
+Axum's [WebSocket support](https://docs.rs/axum/latest/axum/extract/ws/) provides the full-duplex connection needed for requests, command output, autocomplete, cancellation, and acknowledgements.
 Release builds use [rust-embed](https://docs.rs/rust-embed/latest/rust_embed/) to compile the Vite assets into the Rust executable.
 
 | Option | Advantages | Tradeoffs | Decision |
@@ -127,7 +127,7 @@ The connection session owns authentication, socket lifecycle, and bounded outbou
 `MessageRouter` delegates each typed request variant to one focused handler struct.
 Handlers translate transport values and call application services; they do not parse command lines, launch processes, or write to sockets.
 
-Planned backend modules are:
+Backend modules are:
 
 - `autocomplete`: debounces, supersedes, and cancels configured autocomplete commands.
 - `buttons`: resolves button configuration and presentation metadata for an item.
@@ -389,7 +389,6 @@ options:
         - label: Start work
           command: >-
             cd; claude --print 'Implement {item.url}. {prompt}'
-          confirm: true
           prompt:
             label: Implementation details
             placeholder: Add constraints or acceptance criteria
@@ -455,6 +454,7 @@ options:
 ```
 
 YAML folded strings keep long commands readable while producing one command-line string.
+The optional `collapsed` value defaults to `false`; set it to `true` when a section should start collapsed.
 The focused files intentionally repeat similar button and discovery commands rather than creating a command registry.
 Changing a section query or an agent invocation does not require finding a separate registry entry and understanding which other features reference it.
 
@@ -478,7 +478,7 @@ Each button has a visible `label` and exactly one of:
 - `command`, containing the complete inline command to run.
 - `url`, containing a URL template to open in a new browser tab.
 
-A command button may also define `confirm` and `prompt`.
+A command button may also define `prompt`.
 A prompt declaration requires the command to contain `{prompt}`, and `{prompt}` requires a prompt declaration.
 Commands that should change directories use ordinary Bash `cd` syntax in the configured string.
 The dashboard does not inspect local checkouts or disable actions based on their presence.
@@ -551,6 +551,7 @@ The backend does not append a query, flags, fields, or executable.
 A successful discovery command writes a JSON array to standard output.
 The selected `item_kind` determines whether each object is validated as a pull request or issue.
 The normalized item contains the repository, number, title, URL, author, labels, state, update time, and available review or assignment fields.
+Pull-request discovery may emit an optional `approvedBy` array of actors with `login` and optional HTTPS `url` values.
 The item `url` is its one destination link and is also the value exposed through `{item.url}` to configured buttons.
 Discovery commands may replace a provider's returned URL while normalizing their output; the dashboard does not apply a second link-template layer.
 An optional `source` string may disambiguate otherwise identical item references without changing provider-neutral backend behavior.
@@ -559,6 +560,9 @@ The example uses `gh search`, but a custom command may produce the same JSON sha
 No provider-specific discovery command is hidden in Rust.
 
 Sections refresh independently and paginate their current items using the section's required positive `items_per_page` value.
+The browser requests an immediate refresh and schedules the configured refresh interval only while its tab is visible and the section is expanded.
+Returning to a visible tab or expanding a section requests a refresh immediately.
+The backend does not schedule unattended discovery commands when no visible, expanded section needs them.
 Each section's required positive `cache_ttl_seconds` value controls its in-memory discovery cache.
 Successful normalized results are cached by the complete command, shell, item kind, and TTL so a configuration reload reuses unchanged queries while a changed query executes immediately.
 Failures are not cached.
@@ -586,7 +590,7 @@ The backend does not parse one coding agent's event stream, capture provider ses
 Commands that need agent-specific permissions, modes, or output flags express them in their inline command strings.
 
 The YAML file is trusted local code.
-The UI shows the exact resolved invocation before it is run, and `confirm: true` requires an explicit confirmation for that button.
+The UI shows the exact resolved invocation before it is run.
 The dashboard does not try to infer whether an arbitrary local command is read-only or destructive.
 
 ## WebSocket application protocol
@@ -691,10 +695,16 @@ The first release has an Options page at `/options`, one dashboard page, and a r
 - The validated `appearance.theme` option controls the Options page, dashboard page, and run drawer.
 - Theme CSS variables and the `color-scheme` property are applied to the document root whenever a configuration snapshot is accepted.
 - The `system` theme follows `prefers-color-scheme` without changing the configured value.
-- Sections appear in merged configuration order and show title, item count, refresh status, stale status, and last successful refresh.
-- Items show repository, number, title, author, labels, a compact accessible status icon, and relevant review or assignment state.
-- Draft, open, merged, and closed status icons are visually distinct and expose their full status label to assistive technology.
+- Sections appear in merged configuration order and show title, refresh status, stale status, and last successful refresh.
+- A section shows its item count only after its first successful discovery, including `0` when that discovery returns no items.
+- Sections start expanded unless their configuration sets `collapsed: true`.
+- Clicking a section heading collapses or expands its items and refresh controls without persisting presentation state.
+- Collapsed sections and hidden browser tabs do not request discovery refreshes.
+- Items show repository, number, title, author, labels, a compact accessible status icon, and relevant review, approver, or assignment state.
+- Draft, approved, open, merged, and closed status icons are visually distinct and expose their full status label to assistive technology.
+- Open pull requests and issues use green circles, closed issues use purple circles, and approved items use an angular green check without an enclosing shape.
 - Each section paginates independently using its configured item count.
+- Clicking non-interactive space in an item row opens that item's one configured URL.
 - Every `always` button appears in merged configuration order.
 - A per-item accessible disclosure control reveals `advanced` buttons in merged configuration order.
 - Every button uses the native HTML `title` attribute for its resolved command, validated URL, or disabled reason.
@@ -788,14 +798,14 @@ Fixtures and helpers should cover meaningful behavior without cloning nearly ide
 2. Implement the Options page, Optify setup store, typed multi-directory Optify configuration, the `OptionsWatcher` listener, schema generation, directory-wide VS Code mappings, template compilation, and atomic reload.
 3. Implement authenticated WebSocket sessions, typed routing, bounded queues, and reconnect resynchronization.
 4. Implement Bash template compilation, discovery sections, item normalization, and the dashboard UI.
-5. Implement generic process streaming, prompts, button execution, command previews, confirmation, and cancellation.
+5. Implement generic process streaming, prompts, button execution, command previews, and cancellation.
 6. Implement configured autocomplete and accessibility and security smoke coverage.
 
 ## Acceptance criteria
 
 - `pnpm --dir dashboard run dev` is the only command needed to start both application layers after dependencies are installed.
 - A release build produces one executable that serves the embedded UI and opens it in the user's normal browser.
-- Each tab uses one authenticated WebSocket for all application requests, responses, command output, autocomplete, and confirmation requests.
+- Each tab uses one authenticated WebSocket for all application requests, responses, command output, and autocomplete.
 - The server rejects unexpected hosts, origins, and unauthenticated WebSocket messages.
 - Development and release restarts preserve Optify setup by serving from stable loopback origins and never falling back to a random port.
 - The browser stores only ordered configuration-directory and root-feature `string[]` values in `localStorage`.

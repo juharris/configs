@@ -1,14 +1,19 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type {
   ActiveConfiguration,
+  AutocompleteSnapshot,
   DashboardSnapshot,
 } from "../generated/transport";
 import { DashboardPage } from "./DashboardPage";
 
 const configuration: ActiveConfiguration = {
+  autocomplete: {
+    debounceMilliseconds: 300,
+    minimumCharacters: 20,
+  },
   revision: 7,
   setup: {
     configDirectories: ["/dashboard/configs"],
@@ -21,11 +26,18 @@ const dashboard: DashboardSnapshot = {
   configurationRevision: 7,
   sections: [
     {
+      collapsed: false,
       error: null,
       id: "reviews",
       items: [
         {
           advancedButtons: [],
+          approvedBy: [
+            {
+              login: "hubot",
+              url: "https://example.test/people/hubot",
+            },
+          ],
           assignees: ["justin"],
           alwaysButtons: [],
           author: "octocat",
@@ -43,12 +55,47 @@ const dashboard: DashboardSnapshot = {
       ],
       itemsPerPage: 6,
       lastSuccessfulRefresh: 1_787_742_000_000,
+      refreshSeconds: 300,
       stale: false,
       status: "idle",
       title: "Reviews requested",
     },
   ],
 };
+
+const autocompleteProps = {
+  autocompletes: {},
+  cancelAutocomplete: vi.fn().mockResolvedValue(undefined),
+  requestAutocomplete: vi.fn().mockResolvedValue(undefined),
+};
+
+function dashboardWithActions(): DashboardSnapshot {
+  const actionsDashboard = structuredClone(dashboard);
+  actionsDashboard.sections[0].items[0].alwaysButtons = [
+    {
+      disabled: false,
+      index: 0,
+      label: "Review",
+      prompt: {
+        label: "Review focus",
+        placeholder: "Add areas to inspect",
+      },
+      title: "codex exec '/review https://example.test/pull/42'",
+      url: null,
+    },
+  ];
+  actionsDashboard.sections[0].items[0].advancedButtons = [
+    {
+      disabled: false,
+      index: 0,
+      label: "Open",
+      prompt: null,
+      title: "https://example.test/pull/42",
+      url: "https://example.test/pull/42",
+    },
+  ];
+  return actionsDashboard;
+}
 
 describe("DashboardPage", () => {
   it("shows dense actionable section state and requests a typed refresh", async () => {
@@ -57,6 +104,7 @@ describe("DashboardPage", () => {
     render(
       <DashboardPage
         activeConfiguration={configuration}
+        {...autocompleteProps}
         cancelRun={vi.fn()}
         connectionError={null}
         connectionStatus="connected"
@@ -76,7 +124,7 @@ describe("DashboardPage", () => {
     expect(screen.getByText("reviewed")).toBeTruthy();
     expect(screen.getByText(/^Updated /).textContent).not.toMatch(/[AP]M/i);
     expect(screen.getByRole("status", { name: "Connected" }).textContent).toBe(
-      "✓",
+      "↔",
     );
     expect(screen.queryByText("Connected")).toBeNull();
     expect(screen.getByRole("link", { name: "Options" }).textContent).toBe("⚙︎");
@@ -99,6 +147,15 @@ describe("DashboardPage", () => {
     expect(
       screen.getByRole("link", { name: "@justin" }).parentElement?.textContent,
     ).toBe("→ @justin");
+    expect(
+      screen.getByRole("link", { name: "@hubot" }).getAttribute("href"),
+    ).toBe("https://example.test/people/hubot");
+    expect(
+      screen.getByRole("link", { name: "@hubot" }).parentElement?.textContent,
+    ).toBe("✓ @hubot");
+    expect(
+      screen.getByRole("link", { name: "@hubot" }).parentElement?.parentElement,
+    ).toBe(reference.closest("li"));
     expect(screen.getByRole("img", { name: "Open" })).toBeTruthy();
     expect(screen.queryByText(/^open$/i)).toBeNull();
     expect(screen.queryByText("Personal Dashboard")).toBeNull();
@@ -116,6 +173,7 @@ describe("DashboardPage", () => {
     render(
       <DashboardPage
         activeConfiguration={configuration}
+        {...autocompleteProps}
         cancelRun={vi.fn()}
         connectionError={null}
         connectionStatus="connecting"
@@ -133,6 +191,125 @@ describe("DashboardPage", () => {
     expect(indicator.textContent).toBe("");
   });
 
+  it("refreshes only while the tab is visible and the section is expanded", async () => {
+    let visibilityState: DocumentVisibilityState = "hidden";
+    const visibility = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockImplementation(() => visibilityState);
+    const refreshSection = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+
+    try {
+      render(
+        <DashboardPage
+          activeConfiguration={configuration}
+          {...autocompleteProps}
+          cancelRun={vi.fn()}
+          connectionError={null}
+          connectionStatus="connected"
+          dashboard={dashboard}
+          dismissRun={vi.fn()}
+          previewButton={vi.fn()}
+          refreshSection={refreshSection}
+          run={null}
+          runButton={vi.fn()}
+        />,
+      );
+
+      expect(refreshSection).not.toHaveBeenCalled();
+      visibilityState = "visible";
+      fireEvent(document, new Event("visibilitychange"));
+      await waitFor(() => expect(refreshSection).toHaveBeenCalledTimes(1));
+
+      await user.click(
+        screen.getByRole("button", { name: "Collapse Reviews requested" }),
+      );
+      expect(screen.queryByText("Keep the dashboard dense")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
+      refreshSection.mockClear();
+
+      visibilityState = "hidden";
+      fireEvent(document, new Event("visibilitychange"));
+      visibilityState = "visible";
+      fireEvent(document, new Event("visibilitychange"));
+      expect(refreshSection).not.toHaveBeenCalled();
+
+      await user.click(
+        screen.getByRole("button", { name: "Expand Reviews requested" }),
+      );
+      await waitFor(() => expect(refreshSection).toHaveBeenCalledTimes(1));
+    } finally {
+      visibility.mockRestore();
+    }
+  });
+
+  it("starts a configured section collapsed and refreshes after expansion", async () => {
+    const collapsedDashboard = structuredClone(dashboard);
+    collapsedDashboard.sections[0].collapsed = true;
+    collapsedDashboard.sections[0].items = [];
+    collapsedDashboard.sections[0].lastSuccessfulRefresh = null;
+    const refreshSection = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+
+    render(
+      <DashboardPage
+        activeConfiguration={configuration}
+        {...autocompleteProps}
+        cancelRun={vi.fn()}
+        connectionError={null}
+        connectionStatus="connected"
+        dashboard={collapsedDashboard}
+        dismissRun={vi.fn()}
+        previewButton={vi.fn()}
+        refreshSection={refreshSection}
+        run={null}
+        runButton={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Expand Reviews requested" }),
+    ).toBeTruthy();
+    expect(document.querySelector(".section-count")).toBeNull();
+    expect(screen.queryByText("Keep the dashboard dense")).toBeNull();
+    expect(refreshSection).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole("button", { name: "Expand Reviews requested" }),
+    );
+    await waitFor(() => expect(refreshSection).toHaveBeenCalledTimes(1));
+  });
+
+  it("opens an item by clicking otherwise inactive row space", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    const user = userEvent.setup();
+    render(
+      <DashboardPage
+        activeConfiguration={configuration}
+        {...autocompleteProps}
+        cancelRun={vi.fn()}
+        connectionError={null}
+        connectionStatus="connected"
+        dashboard={dashboard}
+        dismissRun={vi.fn()}
+        previewButton={vi.fn()}
+        refreshSection={vi.fn().mockResolvedValue(undefined)}
+        run={null}
+        runButton={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByText("Keep the dashboard dense").closest("li");
+    expect(row).not.toBeNull();
+    await user.click(row!);
+
+    expect(open).toHaveBeenCalledWith(
+      "https://app.graphite.com/github/pr/example/project/42",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
   it("shows compact accessible icons for pull request states", () => {
     const statusesDashboard = structuredClone(dashboard);
     statusesDashboard.sections[0].items = [
@@ -145,11 +322,13 @@ describe("DashboardPage", () => {
       { ...dashboard.sections[0].items[0], number: 2, state: "open" },
       { ...dashboard.sections[0].items[0], number: 3, state: "merged" },
       { ...dashboard.sections[0].items[0], number: 4, state: "closed" },
+      { ...dashboard.sections[0].items[0], number: 5, state: "approved" },
     ];
 
     render(
       <DashboardPage
         activeConfiguration={configuration}
+        {...autocompleteProps}
         cancelRun={vi.fn()}
         connectionError={null}
         connectionStatus="connected"
@@ -166,6 +345,48 @@ describe("DashboardPage", () => {
     expect(screen.getByRole("img", { name: "Open" })).toBeTruthy();
     expect(screen.getByRole("img", { name: "Merged" })).toBeTruthy();
     expect(screen.getByRole("img", { name: "Closed" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Approved" }).textContent).toBe("");
+  });
+
+  it("identifies open and closed issue circles separately", () => {
+    const issuesDashboard = structuredClone(dashboard);
+    issuesDashboard.sections[0].items = [
+      {
+        ...issuesDashboard.sections[0].items[0],
+        isDraft: null,
+        itemKind: "issue",
+      },
+      {
+        ...issuesDashboard.sections[0].items[0],
+        isDraft: null,
+        itemKind: "issue",
+        number: 43,
+        state: "closed",
+      },
+    ];
+
+    render(
+      <DashboardPage
+        activeConfiguration={configuration}
+        {...autocompleteProps}
+        cancelRun={vi.fn()}
+        connectionError={null}
+        connectionStatus="connected"
+        dashboard={issuesDashboard}
+        dismissRun={vi.fn()}
+        previewButton={vi.fn()}
+        refreshSection={vi.fn()}
+        run={null}
+        runButton={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "Open" }).dataset.itemKind).toBe(
+      "issue",
+    );
+    expect(screen.getByRole("img", { name: "Closed" }).dataset.itemKind).toBe(
+      "issue",
+    );
   });
 
   it("shows every label alphabetically", () => {
@@ -178,6 +399,7 @@ describe("DashboardPage", () => {
     render(
       <DashboardPage
         activeConfiguration={configuration}
+        {...autocompleteProps}
         cancelRun={vi.fn()}
         connectionError={null}
         connectionStatus="connected"
@@ -231,6 +453,7 @@ describe("DashboardPage", () => {
       render(
         <DashboardPage
           activeConfiguration={configuration}
+          {...autocompleteProps}
           cancelRun={vi.fn()}
           connectionError={null}
           connectionStatus="connected"
@@ -268,6 +491,7 @@ describe("DashboardPage", () => {
     render(
       <DashboardPage
         activeConfiguration={configuration}
+        {...autocompleteProps}
         cancelRun={vi.fn()}
         connectionError={null}
         connectionStatus="connected"
@@ -301,6 +525,7 @@ describe("DashboardPage", () => {
     render(
       <DashboardPage
         activeConfiguration={configuration}
+        {...autocompleteProps}
         cancelRun={vi.fn()}
         connectionError={null}
         connectionStatus="connected"
@@ -323,32 +548,7 @@ describe("DashboardPage", () => {
   });
 
   it("renders configured actions and sends prompt values by button position", async () => {
-    const actionsDashboard = structuredClone(dashboard);
-    actionsDashboard.sections[0].items[0].alwaysButtons = [
-      {
-        confirm: false,
-        disabled: false,
-        index: 0,
-        label: "Review",
-        prompt: {
-          label: "Review focus",
-          placeholder: "Add areas to inspect",
-        },
-        title: "codex exec '/review https://example.test/pull/42'",
-        url: null,
-      },
-    ];
-    actionsDashboard.sections[0].items[0].advancedButtons = [
-      {
-        confirm: false,
-        disabled: false,
-        index: 0,
-        label: "Open",
-        prompt: null,
-        title: "https://example.test/pull/42",
-        url: "https://example.test/pull/42",
-      },
-    ];
+    const actionsDashboard = dashboardWithActions();
     const previewButton = vi
       .fn()
       .mockResolvedValue(
@@ -360,6 +560,7 @@ describe("DashboardPage", () => {
     render(
       <DashboardPage
         activeConfiguration={configuration}
+        {...autocompleteProps}
         cancelRun={vi.fn()}
         connectionError={null}
         connectionStatus="connected"
@@ -395,6 +596,91 @@ describe("DashboardPage", () => {
     ).toBe("https://example.test/pull/42");
   });
 
+  it("debounces configured autocomplete and applies only the current suggestion", async () => {
+    const actionsDashboard = dashboardWithActions();
+    const autocompleteConfiguration = {
+      ...configuration,
+      autocomplete: {
+        debounceMilliseconds: 300,
+        minimumCharacters: 3,
+      },
+    };
+    const cancelAutocomplete = vi.fn().mockResolvedValue(undefined);
+    const previewButton = vi.fn().mockResolvedValue("review focus on tests");
+    const refreshSection = vi.fn().mockResolvedValue(undefined);
+    const requestAutocomplete = vi.fn().mockResolvedValue(undefined);
+    const runButton = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    const view = (
+      autocompletes: Readonly<Record<string, AutocompleteSnapshot>>,
+    ) => (
+      <DashboardPage
+        activeConfiguration={autocompleteConfiguration}
+        autocompletes={autocompletes}
+        cancelAutocomplete={cancelAutocomplete}
+        cancelRun={vi.fn()}
+        connectionError={null}
+        connectionStatus="connected"
+        dashboard={actionsDashboard}
+        dismissRun={vi.fn()}
+        previewButton={previewButton}
+        refreshSection={refreshSection}
+        requestAutocomplete={requestAutocomplete}
+        run={null}
+        runButton={runButton}
+      />
+    );
+    const { rerender } = render(view({}));
+
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    await user.type(screen.getByLabelText("Review focus"), "focus on tests");
+    await waitFor(() => expect(requestAutocomplete).toHaveBeenCalledTimes(1));
+    const request = requestAutocomplete.mock.calls[0][0];
+    expect(request).toMatchObject({
+      buttonIndex: 0,
+      buttonList: "always",
+      configurationRevision: 7,
+      draft: "focus on tests",
+      sectionId: "reviews",
+      selectionEnd: 14,
+      selectionStart: 14,
+    });
+
+    rerender(
+      view({
+        [request.editorId]: {
+          autocompleteId: "stale-autocomplete",
+          editorId: request.editorId,
+          error: null,
+          status: "completed",
+          suggestion: "replace the current draft with a stale suggestion",
+        },
+      }),
+    );
+    expect(
+      screen.queryByText("replace the current draft with a stale suggestion"),
+    ).toBeNull();
+
+    rerender(
+      view({
+        [request.editorId]: {
+          autocompleteId: request.autocompleteId,
+          editorId: request.editorId,
+          error: null,
+          status: "completed",
+          suggestion: "focus on tests and boundaries",
+        },
+      }),
+    );
+    expect(screen.getByText("focus on tests and boundaries")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Use suggestion" }));
+
+    expect(
+      (screen.getByLabelText("Review focus") as HTMLInputElement).value,
+    ).toBe("focus on tests and boundaries");
+    expect(requestAutocomplete).toHaveBeenCalledTimes(1);
+  });
+
   it("shows live run output and requests cancellation", async () => {
     const cancelRun = vi.fn().mockResolvedValue(undefined);
     const user = userEvent.setup();
@@ -402,6 +688,7 @@ describe("DashboardPage", () => {
     render(
       <DashboardPage
         activeConfiguration={configuration}
+        {...autocompleteProps}
         cancelRun={cancelRun}
         connectionError={null}
         connectionStatus="connected"

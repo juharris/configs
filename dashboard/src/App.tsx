@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DashboardPage } from "./dashboard/DashboardPage";
 import type {
   ActiveConfiguration,
+  AutocompleteSnapshot,
   ButtonList,
   DashboardItem,
   DashboardSnapshot,
@@ -11,13 +12,20 @@ import type {
 import { OptionsPage } from "./options/OptionsPage";
 import { OptifySetupStore } from "./options/OptifySetupStore";
 import { applyTheme } from "./theme";
-import { WebSocketClient, type ConnectionStatus } from "./WebSocketClient";
+import {
+  type AutocompleteRequestParameters,
+  type ConnectionStatus,
+  WebSocketClient,
+} from "./WebSocketClient";
 
 export function App() {
   const store = useMemo(() => new OptifySetupStore(window.localStorage), []);
   const [acceptedSetup, setAcceptedSetup] = useState(() => store.load());
   const [activeConfiguration, setActiveConfiguration] =
     useState<ActiveConfiguration | null>(null);
+  const [autocompletes, setAutocompletes] = useState<
+    Record<string, AutocompleteSnapshot>
+  >({});
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("connecting");
@@ -51,6 +59,11 @@ export function App() {
   useEffect(() => {
     const client = new WebSocketClient({
       getSetup: () => acceptedSetupRef.current,
+      onAutocomplete: (autocomplete) =>
+        setAutocompletes((current) => ({
+          ...current,
+          [autocomplete.editorId]: autocomplete,
+        })),
       onConfiguration: (configuration) => {
         store.save(configuration.setup);
         acceptedSetupRef.current = configuration.setup;
@@ -112,6 +125,14 @@ export function App() {
   return (
     <DashboardPage
       activeConfiguration={activeConfiguration}
+      autocompletes={autocompletes}
+      cancelAutocomplete={async (editorId) => {
+        const client = clientRef.current;
+        if (client === null) {
+          throw new Error("The dashboard service is connecting.");
+        }
+        await client.cancelAutocomplete(editorId);
+      }}
       cancelRun={async (runId) => {
         const client = clientRef.current;
         if (client === null) {
@@ -163,6 +184,15 @@ export function App() {
           );
           throw error;
         }
+      }}
+      requestAutocomplete={async (
+        parameters: AutocompleteRequestParameters,
+      ) => {
+        const client = clientRef.current;
+        if (client === null) {
+          throw new Error("The dashboard service is connecting.");
+        }
+        await client.requestAutocomplete(parameters);
       }}
       run={run}
       runButton={async (

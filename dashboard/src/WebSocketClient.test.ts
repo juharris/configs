@@ -13,6 +13,10 @@ const setup: OptifySetup = {
 };
 
 const configuration: ActiveConfiguration = {
+  autocomplete: {
+    debounceMilliseconds: 300,
+    minimumCharacters: 20,
+  },
   revision: 3,
   setup,
   theme: "dark",
@@ -37,6 +41,7 @@ describe("WebSocketClient", () => {
     const onStatus = vi.fn();
     const client = new WebSocketClient({
       getSetup: () => null,
+      onAutocomplete: vi.fn(),
       onConfiguration,
       onDashboard: vi.fn(),
       onError: vi.fn(),
@@ -50,7 +55,7 @@ describe("WebSocketClient", () => {
     socket.open();
     expect(JSON.parse(socket.sent[0])).toEqual({
       lastEventSequence: null,
-      protocolVersion: 2,
+      protocolVersion: 7,
       token: "token-1",
       type: "authenticate",
     });
@@ -59,7 +64,7 @@ describe("WebSocketClient", () => {
       connectionId: "connection-1",
       dashboard: null,
       eventSequence: 0,
-      protocolVersion: 2,
+      protocolVersion: 7,
       setupStatus: "required",
       type: "connection_ready",
     });
@@ -147,6 +152,48 @@ describe("WebSocketClient", () => {
       type: "response",
     });
     await expect(cancelled).resolves.toBeUndefined();
+
+    const autocompleteRequested = client.requestAutocomplete({
+      autocompleteId: "autocomplete-1",
+      buttonIndex: 0,
+      buttonList: "always",
+      configurationRevision: 3,
+      draft: "focus on tests",
+      editorId: "editor-1",
+      item: { number: 42, repository: "shop/world", source: "github" },
+      sectionId: "requested_reviews",
+      selectionEnd: 14,
+      selectionStart: 14,
+    });
+    const autocompleteRequest = JSON.parse(socket.sent[6]) as {
+      request: { type: string };
+      requestId: string;
+    };
+    expect(autocompleteRequest.request.type).toBe("request_autocomplete");
+    socket.receive({
+      requestId: autocompleteRequest.requestId,
+      response: {
+        autocompleteId: "autocomplete-1",
+        editorId: "editor-1",
+        type: "autocomplete_request_accepted",
+      },
+      type: "response",
+    });
+    await expect(autocompleteRequested).resolves.toBeUndefined();
+
+    const autocompleteCancelled = client.cancelAutocomplete("editor-1");
+    const autocompleteCancellation = JSON.parse(socket.sent[7]) as {
+      requestId: string;
+    };
+    socket.receive({
+      requestId: autocompleteCancellation.requestId,
+      response: {
+        editorId: "editor-1",
+        type: "autocomplete_cancellation_accepted",
+      },
+      type: "response",
+    });
+    await expect(autocompleteCancelled).resolves.toBeUndefined();
     expect(onConfiguration).not.toHaveBeenCalled();
     expect(onStatus).toHaveBeenCalledWith("connected");
     client.stop();
@@ -157,9 +204,11 @@ describe("WebSocketClient", () => {
     vi.stubGlobal("WebSocket", FakeWebSocket);
     const onConfiguration = vi.fn();
     const onDashboard = vi.fn();
+    const onAutocomplete = vi.fn();
     const onRun = vi.fn();
     const client = new WebSocketClient({
       getSetup: () => setup,
+      onAutocomplete,
       onConfiguration,
       onDashboard,
       onError: vi.fn(),
@@ -176,7 +225,7 @@ describe("WebSocketClient", () => {
       connectionId: "connection-1",
       dashboard,
       eventSequence: 0,
-      protocolVersion: 2,
+      protocolVersion: 7,
       setupStatus: "required",
       type: "connection_ready",
     });
@@ -203,11 +252,26 @@ describe("WebSocketClient", () => {
     });
     expect(onConfiguration).toHaveBeenLastCalledWith(reloaded);
 
+    const autocomplete = {
+      autocompleteId: "autocomplete-1",
+      editorId: "editor-1",
+      error: null,
+      status: "completed" as const,
+      suggestion: "Focus on the boundary case.",
+    };
+    socket.receive({
+      event: { autocomplete, type: "autocomplete_updated" },
+      eventId: "event-2",
+      sequence: 2,
+      type: "event",
+    });
+    expect(onAutocomplete).toHaveBeenCalledWith(autocomplete);
+
     const updatedDashboard = { ...dashboard, configurationRevision: 4 };
     socket.receive({
       event: { dashboard: updatedDashboard, type: "dashboard_updated" },
-      eventId: "event-2",
-      sequence: 2,
+      eventId: "event-3",
+      sequence: 3,
       type: "event",
     });
     expect(onDashboard).toHaveBeenLastCalledWith(updatedDashboard);
@@ -222,8 +286,8 @@ describe("WebSocketClient", () => {
     };
     socket.receive({
       event: { run, type: "run_updated" },
-      eventId: "event-3",
-      sequence: 3,
+      eventId: "event-4",
+      sequence: 4,
       type: "event",
     });
     expect(onRun).toHaveBeenCalledWith(run);
@@ -282,7 +346,7 @@ function stubBootstrap(token: string) {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ protocolVersion: 2, token }),
+      json: vi.fn().mockResolvedValue({ protocolVersion: 7, token }),
       ok: true,
       status: 200,
     }),

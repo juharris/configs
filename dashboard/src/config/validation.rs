@@ -172,10 +172,10 @@ fn validate_button(
     }
 
     if let Some(url) = &button.url {
-        if button.confirm || button.prompt.is_some() {
+        if button.prompt.is_some() {
             return Err(ConfigError::field(
                 field,
-                "confirm and prompt are available only for command buttons",
+                "prompt is available only for command buttons",
             ));
         }
         let template = PlainTemplate::compile(url.clone(), &Placeholder::item())

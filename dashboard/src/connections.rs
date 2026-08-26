@@ -7,7 +7,9 @@ use thiserror::Error;
 use tokio::sync::{mpsc, watch};
 
 use crate::config::ConfigurationSnapshot;
-use crate::messages::{DashboardSnapshot, RunSnapshot, ServerEvent, ServerMessage};
+use crate::messages::{
+    AutocompleteSnapshot, DashboardSnapshot, RunSnapshot, ServerEvent, ServerMessage,
+};
 
 const EVENT_REPLAY_CAPACITY: usize = 128;
 const OUTBOUND_QUEUE_CAPACITY: usize = 64;
@@ -84,6 +86,17 @@ impl ConnectionHub {
         self.next_event_sequence.load(Ordering::Acquire) - 1
     }
 
+    pub fn publish_autocomplete(
+        &self,
+        connection_id: u64,
+        autocomplete: AutocompleteSnapshot,
+    ) -> Result<(), ConnectionError> {
+        self.publish_targeted_event(
+            connection_id,
+            ServerEvent::AutocompleteUpdated { autocomplete },
+        )
+    }
+
     pub fn publish_configuration(
         &self,
         snapshot: ConfigurationSnapshot,
@@ -100,9 +113,17 @@ impl ConnectionHub {
     }
 
     pub fn publish_run(&self, connection_id: u64, run: RunSnapshot) -> Result<(), ConnectionError> {
+        self.publish_targeted_event(connection_id, ServerEvent::RunUpdated { run })
+    }
+
+    fn publish_targeted_event(
+        &self,
+        connection_id: u64,
+        event: ServerEvent,
+    ) -> Result<(), ConnectionError> {
         let sequence = self.next_event_sequence.fetch_add(1, Ordering::AcqRel);
         let message = ServerMessage::Event {
-            event: ServerEvent::RunUpdated { run },
+            event,
             event_id: format!("event-{sequence}"),
             sequence,
         };

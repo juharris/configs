@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
+use crate::autocomplete::{AutocompleteError, resolve_autocomplete, validate_identifier};
 use crate::buttons::{ButtonError, ResolvedCommand, resolve_command};
-use crate::config::{ConfigService, ConfigServiceError};
+use crate::config::{ConfigService, ConfigServiceError, ConfigurationSnapshot};
 use crate::messages::{
-    ButtonList, ClientRequest, ErrorCode, ItemReference, OptifySetup, ServerResponse,
+    ButtonList, ClientRequest, DashboardItem, ErrorCode, ItemReference, OptifySetup, ServerResponse,
 };
 use crate::processes::{ProcessError, ProcessService};
 use crate::state::{DashboardService, DashboardServiceError};
@@ -33,9 +34,11 @@ impl ApplyOptifySetupHandler {
 /// Routes each typed request to its focused handler.
 pub struct MessageRouter {
     apply_optify_setup: ApplyOptifySetupHandler,
+    cancel_autocomplete: CancelAutocompleteHandler,
     cancel_run: CancelRunHandler,
     preview_button: PreviewButtonHandler,
     refresh_section: RefreshSectionHandler,
+    request_autocomplete: RequestAutocompleteHandler,
     run_button: RunButtonHandler,
 }
 
@@ -51,9 +54,14 @@ impl MessageRouter {
         ));
         Arc::new(Self {
             apply_optify_setup: ApplyOptifySetupHandler::new(config_service.clone()),
+            cancel_autocomplete: CancelAutocompleteHandler::new(process_service.clone()),
             cancel_run: CancelRunHandler::new(process_service.clone()),
             preview_button: PreviewButtonHandler::new(button_resolver.clone()),
             refresh_section: RefreshSectionHandler::new(dashboard_service.clone()),
+            request_autocomplete: RequestAutocompleteHandler::new(
+                button_resolver.clone(),
+                process_service.clone(),
+            ),
             run_button: RunButtonHandler::new(button_resolver, process_service),
         })
     }
@@ -66,6 +74,11 @@ impl MessageRouter {
         match request {
             ClientRequest::ApplyOptifySetup { setup } => {
                 self.apply_optify_setup.handle(setup).await
+            }
+            ClientRequest::CancelAutocomplete { editor_id } => {
+                self.cancel_autocomplete
+                    .handle(connection_id, editor_id)
+                    .await
             }
             ClientRequest::CancelRun { run_id } => {
                 self.cancel_run.handle(connection_id, run_id).await
@@ -97,6 +110,34 @@ impl MessageRouter {
                     .handle(configuration_revision, section_id)
                     .await
             }
+            ClientRequest::RequestAutocomplete {
+                autocomplete_id,
+                button_index,
+                button_list,
+                configuration_revision,
+                draft,
+                editor_id,
+                item,
+                section_id,
+                selection_end,
+                selection_start,
+            } => {
+                self.request_autocomplete
+                    .handle(
+                        connection_id,
+                        configuration_revision,
+                        section_id,
+                        item,
+                        button_list,
+                        button_index,
+                        draft,
+                        selection_end,
+                        selection_start,
+                        editor_id,
+                        autocomplete_id,
+                    )
+                    .await
+            }
             ClientRequest::RunButton {
                 button_index,
                 button_list,
@@ -118,6 +159,27 @@ impl MessageRouter {
                     .await
             }
         }
+    }
+}
+
+pub struct CancelAutocompleteHandler {
+    process_service: Arc<ProcessService>,
+}
+
+impl CancelAutocompleteHandler {
+    pub fn new(process_service: Arc<ProcessService>) -> Self {
+        Self { process_service }
+    }
+
+    pub async fn handle(
+        &self,
+        connection_id: u64,
+        editor_id: String,
+    ) -> Result<ServerResponse, RequestError> {
+        self.process_service
+            .cancel_autocomplete(connection_id, &editor_id)
+            .map_err(RequestError::from)?;
+        Ok(ServerResponse::AutocompleteCancellationAccepted { editor_id })
     }
 }
 
@@ -156,15 +218,12 @@ impl ButtonCommandResolver {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn resolve(
+    fn context(
         &self,
         configuration_revision: u64,
         section_id: &str,
         item: &ItemReference,
-        button_list: ButtonList,
-        button_index: usize,
-        prompt: Option<&str>,
-    ) -> Result<ResolvedCommand, RequestError> {
+    ) -> Result<(ConfigurationSnapshot, DashboardItem), RequestError> {
         let item = self
             .dashboard_service
             .item(configuration_revision, section_id, item)
@@ -182,8 +241,77 @@ impl ButtonCommandResolver {
                 },
             ));
         }
+        Ok((configuration, item))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn resolve(
+        &self,
+        configuration_revision: u64,
+        section_id: &str,
+        item: &ItemReference,
+        button_list: ButtonList,
+        button_index: usize,
+        prompt: Option<&str>,
+    ) -> Result<ResolvedCommand, RequestError> {
+        let (configuration, item) = self.context(configuration_revision, section_id, item)?;
         resolve_command(&configuration, &item, button_list, button_index, prompt)
             .map_err(RequestError::from)
+    }
+}
+
+pub struct RequestAutocompleteHandler {
+    process_service: Arc<ProcessService>,
+    resolver: Arc<ButtonCommandResolver>,
+}
+
+impl RequestAutocompleteHandler {
+    fn new(resolver: Arc<ButtonCommandResolver>, process_service: Arc<ProcessService>) -> Self {
+        Self {
+            process_service,
+            resolver,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn handle(
+        &self,
+        connection_id: u64,
+        configuration_revision: u64,
+        section_id: String,
+        item: ItemReference,
+        button_list: ButtonList,
+        button_index: usize,
+        draft: String,
+        selection_end: usize,
+        selection_start: usize,
+        editor_id: String,
+        autocomplete_id: String,
+    ) -> Result<ServerResponse, RequestError> {
+        validate_identifier(&autocomplete_id)?;
+        validate_identifier(&editor_id)?;
+        let (configuration, item) =
+            self.resolver
+                .context(configuration_revision, &section_id, &item)?;
+        let invocation = resolve_autocomplete(
+            &configuration,
+            &item,
+            button_list,
+            button_index,
+            &draft,
+            selection_end,
+            selection_start,
+        )?;
+        self.process_service.start_autocomplete(
+            connection_id,
+            editor_id.clone(),
+            autocomplete_id.clone(),
+            invocation,
+        )?;
+        Ok(ServerResponse::AutocompleteRequestAccepted {
+            autocomplete_id,
+            editor_id,
+        })
     }
 }
 
@@ -321,6 +449,17 @@ impl From<ConfigServiceError> for RequestError {
     }
 }
 
+impl From<AutocompleteError> for RequestError {
+    fn from(error: AutocompleteError) -> Self {
+        Self {
+            code: ErrorCode::InvalidAutocomplete,
+            field: None,
+            message: error.to_string(),
+            retryable: false,
+        }
+    }
+}
+
 impl From<DashboardServiceError> for RequestError {
     fn from(error: DashboardServiceError) -> Self {
         match error {
@@ -415,7 +554,9 @@ mod tests {
             ServerResponse::OptifySetupApplied { configuration } => {
                 assert_eq!(configuration.revision, 1);
             }
-            ServerResponse::ButtonPreviewed { .. }
+            ServerResponse::AutocompleteCancellationAccepted { .. }
+            | ServerResponse::AutocompleteRequestAccepted { .. }
+            | ServerResponse::ButtonPreviewed { .. }
             | ServerResponse::ButtonRunAccepted { .. }
             | ServerResponse::RunCancellationAccepted { .. }
             | ServerResponse::SectionRefreshAccepted { .. } => {

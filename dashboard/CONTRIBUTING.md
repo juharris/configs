@@ -105,6 +105,8 @@ command: >-
 
 The positive `cache_ttl_seconds` value caches successful normalized results for that complete discovery command.
 Changing one command invalidates only that command's cache entry; failures are never cached.
+Sections start open by default.
+Set `collapsed: true` on an individual section when it should start minimized.
 
 Do not introduce a named command registry merely to deduplicate similar strings.
 Keeping a complete command at its point of use makes personal configuration easier to read and change.

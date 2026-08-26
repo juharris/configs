@@ -8,9 +8,10 @@ use ts_rs::TS;
 
 use crate::config::{DashboardFeatureFile, ItemKind};
 use crate::messages::{
-    ActiveConfiguration, BootstrapResponse, ButtonList, ClientMessage, ClientRequest,
-    DashboardButton, DashboardItem, DashboardLabel, DashboardSnapshot, ErrorCode, ItemReference,
-    OptifySetup, PromptPresentation, RunSnapshot, RunStatus, SectionRefresh, SectionRefreshStatus,
+    ActiveConfiguration, AutocompleteSettings, AutocompleteSnapshot, AutocompleteStatus,
+    BootstrapResponse, ButtonList, ClientMessage, ClientRequest, DashboardActor, DashboardButton,
+    DashboardItem, DashboardLabel, DashboardSnapshot, ErrorCode, ItemReference, OptifySetup,
+    PromptPresentation, RunSnapshot, RunStatus, SectionRefresh, SectionRefreshStatus,
     SectionSnapshot, ServerEvent, ServerMessage, ServerResponse, SetupStatus, Theme,
 };
 
@@ -54,10 +55,14 @@ pub fn dashboard_schema() -> Result<String, ArtifactError> {
 pub fn transport_bindings() -> String {
     let declarations = [
         ActiveConfiguration::decl(),
+        AutocompleteSettings::decl(),
+        AutocompleteSnapshot::decl(),
+        AutocompleteStatus::decl(),
         BootstrapResponse::decl(),
         ButtonList::decl(),
         ClientMessage::decl(),
         ClientRequest::decl(),
+        DashboardActor::decl(),
         DashboardButton::decl(),
         DashboardItem::decl(),
         DashboardLabel::decl(),

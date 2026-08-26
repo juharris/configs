@@ -7,6 +7,7 @@ use futures_util::{SinkExt, StreamExt};
 use crate::config::ConfigService;
 use crate::connections::{BootstrapTokenStore, ConnectionHub};
 use crate::messages::{ClientMessage, ErrorCode, PROTOCOL_VERSION, ServerMessage, SetupStatus};
+use crate::processes::ProcessService;
 use crate::router::MessageRouter;
 use crate::state::DashboardService;
 
@@ -17,6 +18,7 @@ pub struct SessionServices {
     pub config_service: Arc<ConfigService>,
     pub connections: Arc<ConnectionHub>,
     pub dashboard_service: Arc<DashboardService>,
+    pub process_service: Arc<ProcessService>,
     pub router: Arc<MessageRouter>,
     pub tokens: Arc<BootstrapTokenStore>,
 }
@@ -177,6 +179,7 @@ pub async fn run(mut socket: WebSocket, services: SessionServices) {
         services.connections.send(connection_id, response);
     }
 
+    services.process_service.cancel_autocompletes(connection_id);
     services.connections.unregister(connection_id);
     writer.abort();
 }

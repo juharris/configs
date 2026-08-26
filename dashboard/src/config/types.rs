@@ -33,8 +33,6 @@ pub struct AutocompleteConfig {
 #[serde(deny_unknown_fields)]
 pub struct ButtonConfig {
     pub command: Option<String>,
-    #[serde(default)]
-    pub confirm: bool,
     pub label: String,
     pub prompt: Option<PromptConfig>,
     pub url: Option<String>,
@@ -101,6 +99,8 @@ pub struct RootConfig {
 #[serde(deny_unknown_fields)]
 pub struct SectionConfig {
     pub cache_ttl_seconds: u64,
+    #[serde(default)]
+    pub collapsed: bool,
     pub command: String,
     pub id: String,
     pub item_kind: ItemKind,

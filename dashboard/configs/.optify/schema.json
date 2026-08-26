@@ -85,10 +85,6 @@
             "null"
           ]
         },
-        "confirm": {
-          "default": false,
-          "type": "boolean"
-        },
         "label": {
           "type": "string"
         },
@@ -237,6 +233,10 @@
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
+        },
+        "collapsed": {
+          "default": false,
+          "type": "boolean"
         },
         "command": {
           "type": "string"

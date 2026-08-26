@@ -4,16 +4,44 @@ use ts_rs::TS;
 
 use crate::config::ItemKind;
 
-pub const PROTOCOL_VERSION: u16 = 2;
+pub const PROTOCOL_VERSION: u16 = 7;
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase")]
 pub struct ActiveConfiguration {
+    pub autocomplete: AutocompleteSettings,
     #[ts(type = "number")]
     pub revision: u64,
     pub setup: OptifySetup,
     pub theme: Theme,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct AutocompleteSettings {
+    #[ts(type = "number")]
+    pub debounce_milliseconds: u64,
+    pub minimum_characters: usize,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct AutocompleteSnapshot {
+    pub autocomplete_id: String,
+    pub editor_id: String,
+    pub error: Option<String>,
+    pub status: AutocompleteStatus,
+    pub suggestion: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AutocompleteStatus {
+    Completed,
+    Failed,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -53,6 +81,9 @@ pub enum ClientRequest {
     ApplyOptifySetup {
         setup: OptifySetup,
     },
+    CancelAutocomplete {
+        editor_id: String,
+    },
     CancelRun {
         run_id: String,
     },
@@ -70,6 +101,19 @@ pub enum ClientRequest {
         configuration_revision: u64,
         section_id: String,
     },
+    RequestAutocomplete {
+        autocomplete_id: String,
+        button_index: usize,
+        button_list: ButtonList,
+        #[ts(type = "number")]
+        configuration_revision: u64,
+        draft: String,
+        editor_id: String,
+        item: ItemReference,
+        section_id: String,
+        selection_end: usize,
+        selection_start: usize,
+    },
     RunButton {
         button_index: usize,
         button_list: ButtonList,
@@ -84,8 +128,17 @@ pub enum ClientRequest {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase")]
+pub struct DashboardActor {
+    pub login: String,
+    pub url: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
 pub struct DashboardItem {
     pub advanced_buttons: Vec<DashboardButton>,
+    pub approved_by: Vec<DashboardActor>,
     pub assignees: Vec<String>,
     pub always_buttons: Vec<DashboardButton>,
     pub author: Option<String>,
@@ -113,7 +166,6 @@ pub enum ButtonList {
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase")]
 pub struct DashboardButton {
-    pub confirm: bool,
     pub disabled: bool,
     pub index: usize,
     pub label: String,
@@ -145,6 +197,7 @@ pub enum ErrorCode {
     AuthenticationFailed,
     ConfigurationChanged,
     Internal,
+    InvalidAutocomplete,
     InvalidButton,
     InvalidItem,
     InvalidMessage,
@@ -179,6 +232,7 @@ pub struct OptifySetup {
     tag = "type"
 )]
 pub enum ServerEvent {
+    AutocompleteUpdated { autocomplete: AutocompleteSnapshot },
     ConfigurationReloaded { configuration: ActiveConfiguration },
     DashboardUpdated { dashboard: DashboardSnapshot },
     RunUpdated { run: RunSnapshot },
@@ -226,11 +280,28 @@ pub enum ServerMessage {
     tag = "type"
 )]
 pub enum ServerResponse {
-    ButtonPreviewed { preview: String },
-    ButtonRunAccepted { run: RunSnapshot },
-    OptifySetupApplied { configuration: ActiveConfiguration },
-    RunCancellationAccepted { run_id: String },
-    SectionRefreshAccepted { refresh: SectionRefresh },
+    AutocompleteCancellationAccepted {
+        editor_id: String,
+    },
+    AutocompleteRequestAccepted {
+        autocomplete_id: String,
+        editor_id: String,
+    },
+    ButtonPreviewed {
+        preview: String,
+    },
+    ButtonRunAccepted {
+        run: RunSnapshot,
+    },
+    OptifySetupApplied {
+        configuration: ActiveConfiguration,
+    },
+    RunCancellationAccepted {
+        run_id: String,
+    },
+    SectionRefreshAccepted {
+        refresh: SectionRefresh,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -286,12 +357,15 @@ pub struct SectionRefresh {
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase")]
 pub struct SectionSnapshot {
+    pub collapsed: bool,
     pub error: Option<String>,
     pub id: String,
     pub items: Vec<DashboardItem>,
     pub items_per_page: usize,
     #[ts(type = "number | null")]
     pub last_successful_refresh: Option<u64>,
+    #[ts(type = "number")]
+    pub refresh_seconds: u64,
     pub stale: bool,
     pub status: SectionRefreshStatus,
     pub title: String,

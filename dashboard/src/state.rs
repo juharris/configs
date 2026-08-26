@@ -4,7 +4,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
-use tokio::task::JoinHandle;
 
 use crate::config::{ConfigService, ConfigurationSnapshot};
 use crate::items::{DiscoveryError, DiscoveryRequest, ItemDiscoverer};
@@ -199,10 +198,6 @@ enum DashboardCommand {
         response_sender: oneshot::Sender<Result<SectionRefresh, DashboardServiceError>>,
         section_id: String,
     },
-    PeriodicRefresh {
-        configuration_revision: u64,
-        section_id: String,
-    },
 }
 
 struct RuntimeState {
@@ -212,7 +207,6 @@ struct RuntimeState {
     item_discoverer: ItemDiscoverer,
     pending: VecDeque<String>,
     pending_ids: HashSet<String>,
-    periodic_tasks: Vec<JoinHandle<()>>,
     running: HashMap<String, u64>,
 }
 
@@ -225,7 +219,6 @@ impl RuntimeState {
             item_discoverer: ItemDiscoverer::default(),
             pending: VecDeque::new(),
             pending_ids: HashSet::new(),
-            periodic_tasks: Vec::new(),
             running: HashMap::new(),
         }
     }
@@ -234,9 +227,6 @@ impl RuntimeState {
         let previous = self.preserved_sections(&configuration);
         self.pending.clear();
         self.pending_ids.clear();
-        for task in self.periodic_tasks.drain(..) {
-            task.abort();
-        }
 
         let sections = configuration
             .configuration
@@ -246,16 +236,24 @@ impl RuntimeState {
             .map(|section| {
                 let preserved = previous.get(&section.id);
                 SectionSnapshot {
+                    collapsed: section.collapsed,
                     error: None,
                     id: section.id.clone(),
                     items: preserved.map_or_else(Vec::new, |snapshot| snapshot.items.clone()),
                     items_per_page: section.items_per_page,
                     last_successful_refresh: preserved
                         .and_then(|snapshot| snapshot.last_successful_refresh),
+                    refresh_seconds: section.refresh_seconds.unwrap_or(
+                        configuration
+                            .configuration
+                            .root
+                            .application
+                            .default_refresh_seconds,
+                    ),
                     stale: preserved
                         .and_then(|snapshot| snapshot.last_successful_refresh)
                         .is_some(),
-                    status: SectionRefreshStatus::Queued,
+                    status: SectionRefreshStatus::Idle,
                     title: section.title.clone(),
                 }
             })
@@ -265,23 +263,6 @@ impl RuntimeState {
             sections,
         });
         self.configuration = Some(configuration.clone());
-
-        for section in &configuration.configuration.root.sections {
-            self.pending.push_back(section.id.clone());
-            self.pending_ids.insert(section.id.clone());
-            self.schedule_periodic_refresh(
-                configuration.revision,
-                section.id.clone(),
-                section.refresh_seconds.unwrap_or(
-                    configuration
-                        .configuration
-                        .root
-                        .application
-                        .default_refresh_seconds,
-                ),
-            );
-        }
-        self.start_available();
     }
 
     fn complete(
@@ -356,19 +337,6 @@ impl RuntimeState {
                 let changed = result.as_ref().is_ok_and(|refresh| !refresh.coalesced);
                 let _ = response_sender.send(result);
                 changed
-            }
-            DashboardCommand::PeriodicRefresh {
-                configuration_revision,
-                section_id,
-            } => {
-                if self.active_revision() != Some(configuration_revision)
-                    || !self.has_section(&section_id)
-                {
-                    return false;
-                }
-                let coalesced = self.enqueue(&section_id);
-                self.start_available();
-                !coalesced
             }
         }
     }
@@ -460,30 +428,6 @@ impl RuntimeState {
             crate::buttons::decorate_item(configuration, item);
         }
         Ok(items)
-    }
-
-    fn schedule_periodic_refresh(
-        &mut self,
-        configuration_revision: u64,
-        section_id: String,
-        refresh_seconds: u64,
-    ) {
-        let command_sender = self.command_sender.clone();
-        self.periodic_tasks.push(tokio::spawn(async move {
-            let interval = Duration::from_secs(refresh_seconds);
-            loop {
-                tokio::time::sleep(interval).await;
-                if command_sender
-                    .send(DashboardCommand::PeriodicRefresh {
-                        configuration_revision,
-                        section_id: section_id.clone(),
-                    })
-                    .is_err()
-                {
-                    return;
-                }
-            }
-        }));
     }
 
     fn section(&self, section_id: &str) -> Option<&SectionSnapshot> {
@@ -638,6 +582,19 @@ mod tests {
         let mut snapshots = dashboard_service.subscribe();
 
         let configuration = config_service.apply_setup(fixture.setup()).unwrap();
+        let idle = wait_for_snapshot(&mut snapshots, |snapshot| {
+            snapshot.sections[0].status == SectionRefreshStatus::Idle
+        })
+        .await;
+        assert!(idle.sections[0].items.is_empty());
+        assert!(!idle.sections[0].collapsed);
+        assert_eq!(idle.sections[0].refresh_seconds, 300);
+
+        let refresh = dashboard_service
+            .refresh_section(configuration.revision, "reviews".to_owned())
+            .await
+            .unwrap();
+        assert!(!refresh.coalesced);
         let refreshing = wait_for_snapshot(&mut snapshots, |snapshot| {
             snapshot.sections[0].status == SectionRefreshStatus::Refreshing
         })

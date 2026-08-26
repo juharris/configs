@@ -1,4 +1,5 @@
 pub mod artifacts;
+pub mod autocomplete;
 pub mod buttons;
 pub mod commands;
 pub mod config;
