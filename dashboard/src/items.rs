@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::{Map, Value};
 use thiserror::Error;
@@ -32,9 +32,15 @@ pub struct DiscoveryRequest {
 }
 
 #[derive(Clone, Debug)]
+pub struct DiscoveryResult {
+    pub items: Vec<DashboardItem>,
+    pub refreshed_at: u64,
+}
+
+#[derive(Clone, Debug)]
 struct CachedDiscovery {
     cached_at: Instant,
-    items: Vec<DashboardItem>,
+    result: DiscoveryResult,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -66,39 +72,52 @@ impl ItemDiscoverer {
     pub async fn discover(
         &self,
         request: DiscoveryRequest,
-    ) -> Result<Vec<DashboardItem>, DiscoveryError> {
+    ) -> Result<DiscoveryResult, DiscoveryError> {
         let cache_key = DiscoveryCacheKey::from(&request);
-        if let Some(items) = self.cached_items(&cache_key).await {
-            return Ok(items);
+        if let Some(result) = self.cached_result(&cache_key).await {
+            return Ok(result);
         }
 
         let output = execute(&request).await?;
         let items =
             normalize_items(&output, request.item_kind).map_err(DiscoveryError::InvalidItems)?;
-        self.store(cache_key, items.clone()).await;
-        Ok(items)
+        let result = DiscoveryResult {
+            items,
+            refreshed_at: timestamp_milliseconds(),
+        };
+        self.store(cache_key, result.clone()).await;
+        Ok(result)
     }
 
-    async fn cached_items(&self, key: &DiscoveryCacheKey) -> Option<Vec<DashboardItem>> {
+    async fn cached_result(&self, key: &DiscoveryCacheKey) -> Option<DiscoveryResult> {
         self.cache
             .read()
             .await
             .get(key)
             .filter(|discovery| discovery.cached_at.elapsed() < key.cache_ttl)
-            .map(|discovery| discovery.items.clone())
+            .map(|discovery| discovery.result.clone())
     }
 
-    async fn store(&self, key: DiscoveryCacheKey, items: Vec<DashboardItem>) {
+    async fn store(&self, key: DiscoveryCacheKey, result: DiscoveryResult) {
         let mut cache = self.cache.write().await;
         cache.retain(|key, discovery| discovery.cached_at.elapsed() < key.cache_ttl);
         cache.insert(
             key,
             CachedDiscovery {
                 cached_at: Instant::now(),
-                items,
+                result,
             },
         );
     }
+}
+
+fn timestamp_milliseconds() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(u64::MAX)
 }
 
 #[derive(Debug, Error)]
@@ -561,13 +580,15 @@ mod tests {
             timeout: Duration::from_secs(2),
         };
 
-        discoverer.discover(request.clone()).await.unwrap();
-        discoverer.discover(request.clone()).await.unwrap();
+        let first = discoverer.discover(request.clone()).await.unwrap();
+        let cached = discoverer.discover(request.clone()).await.unwrap();
         assert_eq!(fs::read(&count_path).unwrap(), b"x");
+        assert_eq!(cached.refreshed_at, first.refreshed_at);
 
         tokio::time::sleep(Duration::from_millis(80)).await;
-        discoverer.discover(request.clone()).await.unwrap();
+        let refreshed = discoverer.discover(request.clone()).await.unwrap();
         assert_eq!(fs::read(&count_path).unwrap(), b"xx");
+        assert!(refreshed.refreshed_at > first.refreshed_at);
 
         let mut changed_request = request;
         changed_request.command =

@@ -440,12 +440,15 @@ summary:focus-visible {
 }
 
 .item-approvers {
+  display: flex;
   min-width: 0;
   grid-column: 4;
-  overflow: hidden;
+  flex-direction: column;
   color: #22c55e;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.item-approver {
+  overflow-wrap: anywhere;
 }
 
 .item-labels {

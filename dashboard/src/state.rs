@@ -1,12 +1,12 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, RwLock, Weak};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::config::{ConfigService, ConfigurationSnapshot};
-use crate::items::{DiscoveryError, DiscoveryRequest, ItemDiscoverer};
+use crate::items::{DiscoveryError, DiscoveryRequest, DiscoveryResult, ItemDiscoverer};
 use crate::messages::{
     DashboardItem, DashboardSnapshot, ItemReference, SectionRefresh, SectionRefreshStatus,
     SectionSnapshot,
@@ -190,7 +190,7 @@ impl DashboardRuntime {
 enum DashboardCommand {
     Completed {
         configuration_revision: u64,
-        result: Result<Vec<crate::messages::DashboardItem>, DiscoveryError>,
+        result: Result<DiscoveryResult, DiscoveryError>,
         section_id: String,
     },
     ManualRefresh {
@@ -268,7 +268,7 @@ impl RuntimeState {
     fn complete(
         &mut self,
         configuration_revision: u64,
-        result: Result<Vec<crate::messages::DashboardItem>, DiscoveryError>,
+        result: Result<DiscoveryResult, DiscoveryError>,
         section_id: String,
     ) {
         self.running.remove(&section_id);
@@ -286,10 +286,10 @@ impl RuntimeState {
         {
             section.status = SectionRefreshStatus::Idle;
             match result {
-                Ok(items) => {
+                Ok(discovery) => {
                     section.error = None;
-                    section.items = items;
-                    section.last_successful_refresh = Some(timestamp_milliseconds());
+                    section.items = discovery.items;
+                    section.last_successful_refresh = Some(discovery.refreshed_at);
                     section.stale = false;
                 }
                 Err(error) => {
@@ -417,17 +417,17 @@ impl RuntimeState {
 
     fn decorate_items(
         &self,
-        result: Result<Vec<crate::messages::DashboardItem>, DiscoveryError>,
-    ) -> Result<Vec<crate::messages::DashboardItem>, DiscoveryError> {
+        result: Result<DiscoveryResult, DiscoveryError>,
+    ) -> Result<DiscoveryResult, DiscoveryError> {
         let configuration = self
             .configuration
             .as_ref()
             .expect("an active revision has an active configuration");
-        let mut items = result?;
-        for item in &mut items {
+        let mut discovery = result?;
+        for item in &mut discovery.items {
             crate::buttons::decorate_item(configuration, item);
         }
-        Ok(items)
+        Ok(discovery)
     }
 
     fn section(&self, section_id: &str) -> Option<&SectionSnapshot> {
@@ -532,15 +532,6 @@ impl RuntimeState {
     }
 }
 
-fn timestamp_milliseconds() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
-        .try_into()
-        .unwrap_or(u64::MAX)
-}
-
 trait DiscoveryErrorCategory {
     fn category(&self) -> &'static str;
 }
@@ -621,6 +612,22 @@ mod tests {
                 .all(|item| !item.always_buttons[0].disabled)
         );
         assert!(!current.sections[0].stale);
+        let last_successful_refresh = current.sections[0].last_successful_refresh;
+
+        let refresh = dashboard_service
+            .refresh_section(configuration.revision, "reviews".to_owned())
+            .await
+            .unwrap();
+        assert!(!refresh.coalesced);
+        snapshots.changed().await.unwrap();
+        let cached = wait_for_snapshot(&mut snapshots, |snapshot| {
+            snapshot.sections[0].status == SectionRefreshStatus::Idle
+        })
+        .await;
+        assert_eq!(
+            cached.sections[0].last_successful_refresh,
+            last_successful_refresh
+        );
 
         tokio::time::sleep(Duration::from_secs(1)).await;
         fixture.fail();

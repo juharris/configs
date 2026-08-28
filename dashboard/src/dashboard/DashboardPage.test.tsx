@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -36,6 +42,10 @@ const dashboard: DashboardSnapshot = {
             {
               login: "hubot",
               url: "https://example.test/people/hubot",
+            },
+            {
+              login: "monalisa",
+              url: "https://example.test/people/monalisa",
             },
           ],
           assignees: ["justin"],
@@ -132,7 +142,9 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Keep the dashboard dense")).toBeTruthy();
     expect(screen.getByText("@octocat")).toBeTruthy();
     expect(screen.getByText("reviewed")).toBeTruthy();
-    expect(screen.getByText(/^Updated /).textContent).not.toMatch(/[AP]M/i);
+    expect(document.querySelector(".section-updated")?.textContent).toMatch(
+      /^Updated /,
+    );
     expect(screen.getByRole("status", { name: "Connected" }).textContent).toBe(
       "↔",
     );
@@ -166,9 +178,13 @@ describe("DashboardPage", () => {
     expect(
       screen.getByRole("link", { name: "@hubot" }).parentElement?.textContent,
     ).toBe("✓ @hubot");
+    const approvers = screen
+      .getByRole("link", { name: "@hubot" })
+      .closest(".item-approvers");
     expect(
-      screen.getByRole("link", { name: "@hubot" }).parentElement?.parentElement,
-    ).toBe(reference.closest("li"));
+      Array.from(approvers?.children ?? [], (approver) => approver.textContent),
+    ).toEqual(["✓ @hubot", "✓ @monalisa"]);
+    expect(approvers?.parentElement).toBe(reference.closest("li"));
     expect(screen.getByRole("img", { name: "Open" })).toBeTruthy();
     expect(screen.queryByText(/^open$/i)).toBeNull();
     expect(screen.queryByText("Personal Dashboard")).toBeNull();
@@ -437,28 +453,40 @@ describe("DashboardPage", () => {
 
   it("formats recent update times relatively and exposes exact local times", () => {
     vi.useFakeTimers();
+    let visibilityState: DocumentVisibilityState = "visible";
+    const visibility = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockImplementation(() => visibilityState);
     try {
       vi.setSystemTime(new Date("2026-08-26T12:00:00Z"));
       const timesDashboard = structuredClone(dashboard);
+      const sectionRefreshDate = new Date("2026-08-26T11:50:00Z");
+      timesDashboard.sections[0].lastSuccessfulRefresh =
+        sectionRefreshDate.getTime();
       timesDashboard.sections[0].items = [
         {
           ...dashboard.sections[0].items[0],
           number: 1,
-          updatedAt: "2026-08-26T11:30:00Z",
+          updatedAt: "2026-08-26T11:59:45Z",
         },
         {
           ...dashboard.sections[0].items[0],
           number: 2,
-          updatedAt: "2026-08-26T08:30:00Z",
+          updatedAt: "2026-08-26T11:30:00Z",
         },
         {
           ...dashboard.sections[0].items[0],
           number: 3,
-          updatedAt: "2026-08-23T08:00:00Z",
+          updatedAt: "2026-08-26T08:30:00Z",
         },
         {
           ...dashboard.sections[0].items[0],
           number: 4,
+          updatedAt: "2026-08-23T08:00:00Z",
+        },
+        {
+          ...dashboard.sections[0].items[0],
+          number: 5,
           updatedAt: "2026-08-10T12:00:00Z",
         },
       ];
@@ -479,9 +507,42 @@ describe("DashboardPage", () => {
         />,
       );
 
+      expect(screen.getByText("15 seconds ago")).toBeTruthy();
       expect(screen.getByText("30 minutes ago")).toBeTruthy();
       expect(screen.getByText("4 hours ago")).toBeTruthy();
       expect(screen.getByText("3 days ago")).toBeTruthy();
+      const sectionTime = screen.getByTitle(sectionRefreshDate.toString());
+      expect(sectionTime.textContent).toBe("10 minutes ago");
+      expect(sectionTime.parentElement?.textContent).toBe(
+        "Updated 10 minutes ago",
+      );
+      expect(sectionTime.getAttribute("datetime")).toBe(
+        sectionRefreshDate.toISOString(),
+      );
+
+      act(() => vi.advanceTimersByTime(1_000));
+
+      expect(screen.getByText("15 seconds ago")).toBeTruthy();
+
+      act(() => vi.advanceTimersByTime(29_000));
+
+      expect(screen.getByText("45 seconds ago")).toBeTruthy();
+
+      act(() => vi.advanceTimersByTime(30_000));
+
+      expect(screen.getByText("1 minute ago")).toBeTruthy();
+      expect(screen.getByText("31 minutes ago")).toBeTruthy();
+      expect(sectionTime.textContent).toBe("11 minutes ago");
+
+      visibilityState = "hidden";
+      fireEvent(document, new Event("visibilitychange"));
+      act(() => vi.advanceTimersByTime(60_000));
+      expect(screen.getByText("31 minutes ago")).toBeTruthy();
+
+      visibilityState = "visible";
+      fireEvent(document, new Event("visibilitychange"));
+      expect(screen.getByText("32 minutes ago")).toBeTruthy();
+      expect(sectionTime.textContent).toBe("12 minutes ago");
       const olderDate = new Date("2026-08-10T12:00:00Z");
       const olderTime = screen.getByTitle(olderDate.toString());
       expect(olderTime.textContent).toBe(
@@ -490,8 +551,11 @@ describe("DashboardPage", () => {
           month: "short",
         }).format(olderDate),
       );
-      expect(olderTime.getAttribute("datetime")).toBe("2026-08-10T12:00:00Z");
+      expect(olderTime.getAttribute("datetime")).toBe(
+        new Date("2026-08-10T12:00:00Z").toISOString(),
+      );
     } finally {
+      visibility.mockRestore();
       vi.useRealTimers();
     }
   });

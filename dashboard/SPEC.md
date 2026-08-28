@@ -592,7 +592,7 @@ The browser requests an immediate refresh and schedules the configured refresh i
 Returning to a visible tab or expanding a section requests a refresh immediately.
 The backend does not schedule unattended discovery commands when no visible, expanded section needs them.
 Each section's required positive `cache_ttl_seconds` value controls its in-memory discovery cache.
-Successful normalized results are cached by the complete command, shell, item kind, and TTL so a configuration reload reuses unchanged queries while a changed query executes immediately.
+Successful normalized results and their command refresh time are cached by the complete command, shell, item kind, and TTL so a configuration reload reuses unchanged queries without presenting the cache hit as a new refresh while a changed query executes immediately.
 Failures are not cached.
 A valid result atomically replaces that section's items.
 A non-zero exit, timeout, invalid JSON, or invalid item preserves the previous data, marks it stale, and displays a sanitized error with a retry button.
@@ -733,6 +733,9 @@ The first release has an Options page at `/options`, a command-log page at `/log
 - Theme CSS variables and the `color-scheme` property are applied to the document root whenever a configuration snapshot is accepted.
 - The `system` theme follows `prefers-color-scheme` without changing the configured value.
 - Sections appear in merged configuration order and show title, refresh status, stale status, and last successful refresh.
+- Section refresh and item update timestamps use the same relative second, minute, hour, day, and local-date thresholds and expose the exact local date and time on hover.
+- Timestamps show seconds below one minute.
+- One page-level clock updates every relative timestamp every 30 seconds while the tab is visible and catches up immediately when the tab becomes visible again.
 - A section shows its item count only after its first successful discovery, including `0` when that discovery returns no items.
 - Sections start expanded unless their configuration sets `collapsed: true`.
 - Clicking a section heading collapses or expands its items and refresh controls without persisting presentation state.

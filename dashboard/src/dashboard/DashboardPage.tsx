@@ -66,7 +66,7 @@ export function DashboardPage({
   const synchronized =
     activeConfiguration !== null &&
     dashboard?.configurationRevision === activeConfiguration.revision;
-  const pageVisible = usePageVisibility();
+  const { currentTime, pageVisible } = usePageClock();
 
   return (
     <main className="dashboard-layout">
@@ -107,6 +107,7 @@ export function DashboardPage({
               cancelAutocomplete={cancelAutocomplete}
               configurationRevision={dashboard.configurationRevision}
               connectionStatus={connectionStatus}
+              currentTime={currentTime}
               key={`${dashboard.configurationRevision.toString()}:${section.id}`}
               pageVisible={pageVisible}
               previewButton={(item, buttonList, buttonIndex, prompt) =>
@@ -177,6 +178,7 @@ function DashboardSection({
   cancelAutocomplete,
   configurationRevision,
   connectionStatus,
+  currentTime,
   pageVisible,
   previewButton,
   refresh,
@@ -189,6 +191,7 @@ function DashboardSection({
   cancelAutocomplete: (editorId: string) => Promise<void>;
   configurationRevision: number;
   connectionStatus: ConnectionStatus;
+  currentTime: number;
   pageVisible: boolean;
   previewButton: PreviewButton;
   refresh: () => Promise<void>;
@@ -269,7 +272,11 @@ function DashboardSection({
             </span>
             {section.lastSuccessfulRefresh === null ? null : (
               <span className="section-updated">
-                Updated {formatTime(section.lastSuccessfulRefresh)}
+                Updated{" "}
+                <UpdatedTime
+                  currentTime={currentTime}
+                  value={section.lastSuccessfulRefresh}
+                />
               </span>
             )}
           </button>
@@ -341,6 +348,7 @@ function DashboardSection({
                 cancelAutocomplete={cancelAutocomplete}
                 configurationRevision={configurationRevision}
                 connectionStatus={connectionStatus}
+                currentTime={currentTime}
                 item={item}
                 key={`${item.source ?? "default"}:${item.repository}#${item.number.toString()}`}
                 previewButton={previewButton}
@@ -367,6 +375,7 @@ function DashboardItemRow({
   cancelAutocomplete,
   configurationRevision,
   connectionStatus,
+  currentTime,
   item,
   previewButton,
   requestAutocomplete,
@@ -378,6 +387,7 @@ function DashboardItemRow({
   cancelAutocomplete: (editorId: string) => Promise<void>;
   configurationRevision: number;
   connectionStatus: ConnectionStatus;
+  currentTime: number;
   item: DashboardItem;
   previewButton: PreviewButton;
   requestAutocomplete: (
@@ -617,11 +627,10 @@ function DashboardItemRow({
           className="item-approvers"
           title={`Approved by ${item.approvedBy.map((approver) => approver.login).join(", ")}`}
         >
-          {item.approvedBy.map((approver, index) => (
-            <Fragment key={approver.login}>
-              {index === 0 ? "✓ " : ", "}
-              <DashboardActorAlias actor={approver} />
-            </Fragment>
+          {item.approvedBy.map((approver) => (
+            <span className="item-approver" key={approver.login}>
+              ✓ <DashboardActorAlias actor={approver} />
+            </span>
           ))}
         </span>
       )}
@@ -643,13 +652,11 @@ function DashboardItemRow({
         )}
       </span>
       <ItemLabels labels={item.labels} />
-      <time
+      <UpdatedTime
         className="item-time"
-        dateTime={item.updatedAt}
-        title={new Date(item.updatedAt).toString()}
-      >
-        {formatItemUpdatedAt(item.updatedAt)}
-      </time>
+        currentTime={currentTime}
+        value={item.updatedAt}
+      />
       <div className="item-actions">
         {item.alwaysButtons.map((button) => (
           <ActionButton
@@ -1007,22 +1014,28 @@ function connectionStatusLabel(status: ConnectionStatus): string {
   }
 }
 
-function formatItemDate(date: Date): string {
+function formatDate(date: Date): string {
   return new Intl.DateTimeFormat(undefined, {
     day: "numeric",
     month: "short",
   }).format(date);
 }
 
-function formatItemUpdatedAt(value: string): string {
-  const date = new Date(value);
-  const elapsedMilliseconds = Date.now() - date.getTime();
-  const minuteMilliseconds = 60 * 1_000;
+function formatUpdatedAt(date: Date, currentTime: number): string {
+  const elapsedMilliseconds = currentTime - date.getTime();
+  const secondMilliseconds = 1_000;
+  const minuteMilliseconds = 60 * secondMilliseconds;
   const hourMilliseconds = 60 * minuteMilliseconds;
   const dayMilliseconds = 24 * hourMilliseconds;
 
   if (elapsedMilliseconds < 0) {
-    return formatItemDate(date);
+    return formatDate(date);
+  }
+  if (elapsedMilliseconds < minuteMilliseconds) {
+    return relativeTimeLabel(
+      Math.floor(elapsedMilliseconds / secondMilliseconds),
+      "second",
+    );
   }
   if (elapsedMilliseconds < hourMilliseconds) {
     return relativeTimeLabel(
@@ -1042,15 +1055,7 @@ function formatItemUpdatedAt(value: string): string {
       "day",
     );
   }
-  return formatItemDate(date);
-}
-
-function formatTime(value: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    hourCycle: "h23",
-    minute: "2-digit",
-  }).format(new Date(value));
+  return formatDate(date);
 }
 
 type ItemStatusPresentation = {
@@ -1093,20 +1098,70 @@ function relativeTimeLabel(value: number, unit: string): string {
   return `${value.toString()} ${unit}${value === 1 ? "" : "s"} ago`;
 }
 
-function usePageVisibility(): boolean {
-  const [visible, setVisible] = useState(
-    () => document.visibilityState === "visible",
+function UpdatedTime({
+  className,
+  currentTime,
+  value,
+}: {
+  className?: string;
+  currentTime: number;
+  value: number | string;
+}) {
+  const date = new Date(value);
+  return (
+    <time
+      className={className}
+      dateTime={date.toISOString()}
+      title={date.toString()}
+    >
+      {formatUpdatedAt(date, currentTime)}
+    </time>
   );
+}
+
+function usePageClock(): { currentTime: number; pageVisible: boolean } {
+  const [clock, setClock] = useState(() => ({
+    currentTime: Date.now(),
+    pageVisible: document.visibilityState === "visible",
+  }));
 
   useEffect(() => {
-    const updateVisibility = () =>
-      setVisible(document.visibilityState === "visible");
+    let interval: number | undefined;
+    const stopClock = () => {
+      if (interval !== undefined) {
+        window.clearInterval(interval);
+        interval = undefined;
+      }
+    };
+    const updateClock = () =>
+      setClock((current) => ({ ...current, currentTime: Date.now() }));
+    const startClock = () => {
+      stopClock();
+      interval = window.setInterval(updateClock, 30_000);
+    };
+    const updateVisibility = () => {
+      const pageVisible = document.visibilityState === "visible";
+      setClock((current) => ({
+        currentTime: pageVisible ? Date.now() : current.currentTime,
+        pageVisible,
+      }));
+      if (pageVisible) {
+        startClock();
+      } else {
+        stopClock();
+      }
+    };
+    if (document.visibilityState === "visible") {
+      startClock();
+    }
     document.addEventListener("visibilitychange", updateVisibility);
-    return () =>
+    return () => {
+      stopClock();
       document.removeEventListener("visibilitychange", updateVisibility);
+    };
   }, []);
 
-  return visible;
+  return clock;
 }
 
 function useRunElapsed(active: boolean): number {
