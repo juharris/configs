@@ -580,6 +580,8 @@ A successful discovery command writes a JSON array to standard output.
 The selected `item_kind` determines whether each object is validated as a pull request or issue.
 The normalized item contains the repository, number, title, URL, author, labels, state, update time, and available review or assignment fields.
 Pull-request discovery may emit an optional `approvedBy` array of actors with `login` and optional HTTPS `url` values.
+It may also emit `targetBranch`, `checksStatus`, and `mergeStatus`.
+`checksStatus` accepts `failed`, `passed`, or `pending`; `mergeStatus` accepts `conflicting`, `mergeable`, or `unknown`.
 The item `url` is its one destination link and is also the value exposed through `{item.url}` to configured buttons.
 Discovery commands may replace a provider's returned URL while normalizing their output; the dashboard does not apply a second link-template layer.
 An optional `source` string may disambiguate otherwise identical item references without changing provider-neutral backend behavior.
@@ -740,7 +742,8 @@ The first release has an Options page at `/options`, a command-log page at `/log
 - Sections start expanded unless their configuration sets `collapsed: true`.
 - Clicking a section heading collapses or expands its items and refresh controls without persisting presentation state.
 - Collapsed sections and hidden browser tabs do not request discovery refreshes.
-- Items show repository, number, title, author, labels, a compact accessible status icon, and relevant review, approver, or assignment state.
+- Items show repository, number, title, author, labels, target branch, compact accessible state and CI icons, merge conflicts, and relevant review, approver, or assignment state.
+- Failed CI uses a red cross, passed CI uses a green check, pending CI uses a clock, and merge conflicts use a red cross while other merge states remain blank.
 - Item rows across every section use the same proportional column template, with the wider title track and fixed column starts shared by every row.
 - Draft, approved, open, merged, and closed status icons are visually distinct and expose their full status label to assistive technology.
 - Open pull requests and issues use green circles, closed issues use purple circles, and approved items use an angular green check without an enclosing shape.

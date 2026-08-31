@@ -44,6 +44,14 @@ pub enum AutocompleteStatus {
     Failed,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum ChecksStatus {
+    Failed,
+    Passed,
+    Pending,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase")]
@@ -143,14 +151,17 @@ pub struct DashboardItem {
     pub assignees: Vec<String>,
     pub always_buttons: Vec<DashboardButton>,
     pub author: Option<String>,
+    pub checks_status: Option<ChecksStatus>,
     pub is_draft: Option<bool>,
     pub item_kind: ItemKind,
     pub labels: Vec<DashboardLabel>,
+    pub merge_status: Option<MergeStatus>,
     #[ts(type = "number")]
     pub number: u64,
     pub repository: String,
     pub source: Option<String>,
     pub state: String,
+    pub target_branch: Option<String>,
     pub title: String,
     pub updated_at: String,
     pub url: String,
@@ -216,6 +227,14 @@ pub struct ItemReference {
     pub number: u64,
     pub repository: String,
     pub source: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum MergeStatus {
+    Conflicting,
+    Mergeable,
+    Unknown,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, TS)]

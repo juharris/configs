@@ -51,13 +51,16 @@ const dashboard: DashboardSnapshot = {
           assignees: ["justin"],
           alwaysButtons: [],
           author: "octocat",
+          checksStatus: "passed",
           isDraft: false,
           itemKind: "pull_request",
           labels: [{ color: "1d76db", name: "reviewed" }],
+          mergeStatus: "mergeable",
           number: 42,
           repository: "example/project",
           source: "github",
           state: "open",
+          targetBranch: "main",
           title: "Keep the dashboard dense",
           updatedAt: "2026-08-26T12:00:00Z",
           url: "https://app.graphite.com/github/pr/example/project/42",
@@ -142,6 +145,13 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Keep the dashboard dense")).toBeTruthy();
     expect(screen.getByText("@octocat")).toBeTruthy();
     expect(screen.getByText("reviewed")).toBeTruthy();
+    expect(screen.getByText("main").getAttribute("title")).toBe(
+      "Target branch: main",
+    );
+    expect(
+      screen.getByRole("img", { name: "CI checks passed" }).textContent,
+    ).toBe("✓");
+    expect(screen.queryByRole("img", { name: "Merge conflicts" })).toBeNull();
     expect(document.querySelector(".section-updated")?.textContent).toMatch(
       /^Updated /,
     );
@@ -375,6 +385,59 @@ describe("DashboardPage", () => {
     expect(screen.getByRole("img", { name: "Merged" })).toBeTruthy();
     expect(screen.getByRole("img", { name: "Closed" })).toBeTruthy();
     expect(screen.getByRole("img", { name: "Approved" }).textContent).toBe("");
+  });
+
+  it("shows CI and merge status icons", () => {
+    const checksDashboard = structuredClone(dashboard);
+    checksDashboard.sections[0].items = [
+      {
+        ...dashboard.sections[0].items[0],
+        checksStatus: "failed",
+        mergeStatus: "conflicting",
+        number: 1,
+      },
+      {
+        ...dashboard.sections[0].items[0],
+        checksStatus: "passed",
+        mergeStatus: "mergeable",
+        number: 2,
+      },
+      {
+        ...dashboard.sections[0].items[0],
+        checksStatus: "pending",
+        mergeStatus: "unknown",
+        number: 3,
+      },
+    ];
+
+    render(
+      <DashboardPage
+        activeConfiguration={configuration}
+        {...autocompleteProps}
+        cancelRun={vi.fn()}
+        connectionError={null}
+        connectionStatus="connected"
+        dashboard={checksDashboard}
+        dismissRun={vi.fn()}
+        previewButton={vi.fn()}
+        refreshSection={vi.fn()}
+        run={null}
+        runButton={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("img", { name: "CI checks failed" }).textContent,
+    ).toBe("✕");
+    expect(
+      screen.getByRole("img", { name: "CI checks passed" }).textContent,
+    ).toBe("✓");
+    expect(
+      screen.getByRole("img", { name: "CI checks pending" }).textContent,
+    ).toBe("◷");
+    expect(
+      screen.getByRole("img", { name: "Merge conflicts" }).textContent,
+    ).toBe("✕");
   });
 
   it("identifies open and closed issue circles separately", () => {

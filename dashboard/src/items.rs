@@ -16,7 +16,7 @@ use url::Url;
 
 use crate::commands::CommandTemplate;
 use crate::config::ItemKind;
-use crate::messages::{DashboardActor, DashboardItem, DashboardLabel};
+use crate::messages::{ChecksStatus, DashboardActor, DashboardItem, DashboardLabel, MergeStatus};
 
 const MAX_ERROR_DETAIL_CHARACTERS: usize = 2_000;
 const OUTPUT_CHUNK_BYTES: usize = 8 * 1024;
@@ -282,6 +282,22 @@ fn dashboard_actors(
         .collect()
 }
 
+fn checks_status(
+    item: &Map<String, Value>,
+    index: usize,
+) -> Result<Option<ChecksStatus>, ItemValidationError> {
+    match optional_nonblank_string(item, "checksStatus", index)? {
+        None => Ok(None),
+        Some("failed") => Ok(Some(ChecksStatus::Failed)),
+        Some("passed") => Ok(Some(ChecksStatus::Passed)),
+        Some("pending") => Ok(Some(ChecksStatus::Pending)),
+        Some(_) => Err(item_error(
+            index,
+            "checksStatus must be failed, passed, or pending",
+        )),
+    }
+}
+
 fn item_error(item: usize, message: impl Into<String>) -> ItemValidationError {
     ItemValidationError {
         item: item + 1,
@@ -333,6 +349,22 @@ fn logins(value: &Value, item: usize) -> Result<Vec<String>, ItemValidationError
         .collect()
 }
 
+fn merge_status(
+    item: &Map<String, Value>,
+    index: usize,
+) -> Result<Option<MergeStatus>, ItemValidationError> {
+    match optional_nonblank_string(item, "mergeStatus", index)? {
+        None => Ok(None),
+        Some("conflicting") => Ok(Some(MergeStatus::Conflicting)),
+        Some("mergeable") => Ok(Some(MergeStatus::Mergeable)),
+        Some("unknown") => Ok(Some(MergeStatus::Unknown)),
+        Some(_) => Err(item_error(
+            index,
+            "mergeStatus must be conflicting, mergeable, or unknown",
+        )),
+    }
+}
+
 pub fn normalize_items(
     output: &[u8],
     item_kind: ItemKind,
@@ -361,6 +393,10 @@ fn normalize_item(
         .map_or_else(|| Ok(Vec::new()), |value| dashboard_actors(value, index))?;
     let assignees = logins(required(item, "assignees", index)?, index)?;
     let author = actor_login(required(item, "author", index)?, index)?.map(str::to_owned);
+    let checks_status = match item_kind {
+        ItemKind::Issue => None,
+        ItemKind::PullRequest => checks_status(item, index)?,
+    };
     let is_draft = match item_kind {
         ItemKind::Issue => None,
         ItemKind::PullRequest => Some(
@@ -370,6 +406,10 @@ fn normalize_item(
         ),
     };
     let labels = labels(required(item, "labels", index)?, index)?;
+    let merge_status = match item_kind {
+        ItemKind::Issue => None,
+        ItemKind::PullRequest => merge_status(item, index)?,
+    };
     let number = required(item, "number", index)?
         .as_u64()
         .filter(|number| *number > 0)
@@ -381,6 +421,12 @@ fn normalize_item(
         Some(_) => return Err(item_error(index, "source must be a string")),
     };
     let state = required_string(item, "state", index)?.to_owned();
+    let target_branch = match item_kind {
+        ItemKind::Issue => None,
+        ItemKind::PullRequest => {
+            optional_nonblank_string(item, "targetBranch", index)?.map(str::to_owned)
+        }
+    };
     let title = required_string(item, "title", index)?.to_owned();
     let updated_at = required_string(item, "updatedAt", index)?;
     OffsetDateTime::parse(updated_at, &Rfc3339)
@@ -394,17 +440,32 @@ fn normalize_item(
         assignees,
         always_buttons: Vec::new(),
         author,
+        checks_status,
         is_draft,
         item_kind,
         labels,
+        merge_status,
         number,
         repository,
         source,
         state,
+        target_branch,
         title,
         updated_at: updated_at.to_owned(),
         url: url.to_owned(),
     })
+}
+
+fn optional_nonblank_string<'a>(
+    item: &'a Map<String, Value>,
+    field: &str,
+    index: usize,
+) -> Result<Option<&'a str>, ItemValidationError> {
+    match item.get(field) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(value)) => Ok(Some(nonblank(value, index, field)?)),
+        Some(_) => Err(item_error(index, format!("{field} must be a string"))),
+    }
 }
 
 fn nonblank<'a>(value: &'a str, item: usize, field: &str) -> Result<&'a str, ItemValidationError> {
@@ -531,6 +592,7 @@ mod tests {
     };
     use crate::commands::CommandTemplate;
     use crate::config::ItemKind;
+    use crate::messages::{ChecksStatus, MergeStatus};
 
     const PULL_REQUESTS: &[u8] = include_bytes!("fixtures/search-pull-requests.json");
 
@@ -611,11 +673,30 @@ mod tests {
             Some("https://github.com/approver")
         );
         assert_eq!(items[0].assignees, ["reviewer"]);
+        assert_eq!(items[0].checks_status, Some(ChecksStatus::Passed));
         assert_eq!(items[0].labels[0].name, "reviewed");
         assert_eq!(items[0].is_draft, Some(false));
+        assert_eq!(items[0].merge_status, Some(MergeStatus::Mergeable));
         assert_eq!(items[0].source, None);
+        assert_eq!(items[0].target_branch.as_deref(), Some("main"));
         assert_eq!(items[1].author, None);
         assert!(items[1].approved_by.is_empty());
+        assert_eq!(items[1].checks_status, Some(ChecksStatus::Pending));
+        assert_eq!(items[1].merge_status, Some(MergeStatus::Unknown));
+        assert_eq!(items[1].target_branch.as_deref(), Some("release"));
+    }
+
+    #[test]
+    fn rejects_unknown_pull_request_statuses() {
+        let invalid_checks =
+            String::from_utf8_lossy(PULL_REQUESTS).replace("\"passed\"", "\"waiting\"");
+
+        let error = normalize_items(invalid_checks.as_bytes(), ItemKind::PullRequest).unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "The section command returned invalid item 1: checksStatus must be failed, passed, or pending."
+        );
     }
 
     #[test]

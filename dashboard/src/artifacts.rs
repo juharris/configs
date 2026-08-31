@@ -9,10 +9,11 @@ use ts_rs::TS;
 use crate::config::{DashboardFeatureFile, ItemKind};
 use crate::messages::{
     ActiveConfiguration, AutocompleteSettings, AutocompleteSnapshot, AutocompleteStatus,
-    BootstrapResponse, ButtonList, ClientMessage, ClientRequest, DashboardActor, DashboardButton,
-    DashboardItem, DashboardLabel, DashboardSnapshot, ErrorCode, ItemReference, OptifySetup,
-    PromptPresentation, RunSnapshot, RunStatus, SectionRefresh, SectionRefreshStatus,
-    SectionSnapshot, ServerEvent, ServerMessage, ServerResponse, SetupStatus, Theme,
+    BootstrapResponse, ButtonList, ChecksStatus, ClientMessage, ClientRequest, DashboardActor,
+    DashboardButton, DashboardItem, DashboardLabel, DashboardSnapshot, ErrorCode, ItemReference,
+    MergeStatus, OptifySetup, PromptPresentation, RunSnapshot, RunStatus, SectionRefresh,
+    SectionRefreshStatus, SectionSnapshot, ServerEvent, ServerMessage, ServerResponse, SetupStatus,
+    Theme,
 };
 
 const OPTIFY_FEATURE_SCHEMA: &str =
@@ -60,6 +61,7 @@ pub fn transport_bindings() -> String {
         AutocompleteStatus::decl(),
         BootstrapResponse::decl(),
         ButtonList::decl(),
+        ChecksStatus::decl(),
         ClientMessage::decl(),
         ClientRequest::decl(),
         DashboardActor::decl(),
@@ -70,6 +72,7 @@ pub fn transport_bindings() -> String {
         ErrorCode::decl(),
         ItemReference::decl(),
         ItemKind::decl(),
+        MergeStatus::decl(),
         OptifySetup::decl(),
         PromptPresentation::decl(),
         RunSnapshot::decl(),

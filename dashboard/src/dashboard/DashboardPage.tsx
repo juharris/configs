@@ -417,8 +417,14 @@ function DashboardItemRow({
   const requestAutocompleteRef = useRef(requestAutocomplete);
   const suppressAutocompleteRef = useRef(false);
   const currentEditorId = itemEditorId(sectionId, item);
+  const checksStatus =
+    item.itemKind === "pull_request" ? item.checksStatus : null;
+  const mergeStatus =
+    item.itemKind === "pull_request" ? item.mergeStatus : null;
   const promptId = `${item.source ?? "default"}-${item.repository}-${item.number.toString()}-prompt`;
   const status = itemStatusPresentation(item);
+  const targetBranch =
+    item.itemKind === "pull_request" ? item.targetBranch : null;
 
   useEffect(() => {
     cancelAutocompleteRef.current = cancelAutocomplete;
@@ -652,6 +658,16 @@ function DashboardItemRow({
         )}
       </span>
       <ItemLabels labels={item.labels} />
+      <span
+        className="item-target-branch"
+        title={
+          targetBranch === null ? undefined : `Target branch: ${targetBranch}`
+        }
+      >
+        {targetBranch}
+      </span>
+      <ChecksStatusIndicator status={checksStatus} />
+      <MergeStatusIndicator status={mergeStatus} />
       <UpdatedTime
         className="item-time"
         currentTime={currentTime}
@@ -1063,6 +1079,67 @@ type ItemStatusPresentation = {
   label: string;
   status: "approved" | "closed" | "draft" | "merged" | "open" | "unknown";
 };
+
+type ChecksStatusPresentation = {
+  icon: string;
+  label: string;
+  status: "failed" | "passed" | "pending";
+};
+
+function ChecksStatusIndicator({
+  status,
+}: {
+  status: DashboardItem["checksStatus"];
+}) {
+  const presentation = checksStatusPresentation(status);
+  return (
+    <span
+      aria-hidden={presentation === null ? true : undefined}
+      aria-label={presentation?.label}
+      className="item-checks-status"
+      data-status={presentation?.status}
+      role={presentation === null ? undefined : "img"}
+      title={presentation?.label}
+    >
+      {presentation?.icon}
+    </span>
+  );
+}
+
+function MergeStatusIndicator({
+  status,
+}: {
+  status: DashboardItem["mergeStatus"];
+}) {
+  const conflicting = status === "conflicting";
+  return (
+    <span
+      aria-hidden={conflicting ? undefined : true}
+      aria-label={conflicting ? "Merge conflicts" : undefined}
+      className="item-merge-status"
+      data-status={status ?? undefined}
+      role={conflicting ? "img" : undefined}
+      title={conflicting ? "Merge conflicts" : undefined}
+    >
+      {conflicting ? "✕" : null}
+    </span>
+  );
+}
+
+function checksStatusPresentation(
+  status: DashboardItem["checksStatus"],
+): ChecksStatusPresentation | null {
+  switch (status) {
+    case "failed":
+      return { icon: "✕", label: "CI checks failed", status };
+    case "passed":
+      return { icon: "✓", label: "CI checks passed", status };
+    case "pending":
+      return { icon: "◷", label: "CI checks pending", status };
+    case null:
+      return null;
+  }
+}
 
 function itemStatusPresentation(item: DashboardItem): ItemStatusPresentation {
   const state = item.state.toLowerCase();
