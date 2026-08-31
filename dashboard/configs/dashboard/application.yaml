@@ -5,4 +5,5 @@ options:
     max_concurrent_commands: 4
     max_output_bytes_per_run: 10485760
     shell: /bin/bash
-
+    working_directories:
+      - /tmp

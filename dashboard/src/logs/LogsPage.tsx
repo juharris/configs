@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { ConnectionIndicator } from "../dashboard/DashboardPage";
 import type { RunSnapshot } from "../generated/transport";
+import { RunOutput } from "../RunOutput";
 import { runStatusLabel } from "../runState";
 import type { ConnectionStatus } from "../WebSocketClient";
 
@@ -105,7 +106,9 @@ export function LogsPage({
               {run.output === "" ? null : (
                 <>
                   <span className="run-log-output-heading">Output</span>
-                  <pre className="run-log-output">{run.output}</pre>
+                  <pre className="run-log-output">
+                    <RunOutput output={run.output} />
+                  </pre>
                 </>
               )}
             </article>

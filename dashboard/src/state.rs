@@ -683,6 +683,7 @@ mod tests {
                             "max_concurrent_commands": 1,
                             "max_output_bytes_per_run": 65536,
                             "shell": shell_path,
+                            "working_directories": [configuration.path()],
                         },
                         "autocomplete": {
                             "command": "ignored {autocomplete.request}",

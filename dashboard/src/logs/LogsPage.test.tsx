@@ -54,4 +54,26 @@ describe("LogsPage", () => {
     expect(writeText).toHaveBeenCalledWith(failedRun.preview);
     expect(screen.getByRole("button", { name: "Copied" })).toBeTruthy();
   });
+
+  it("links Codex thread output without changing surrounding text", () => {
+    const output =
+      "Before.\nStarted Codex thread 01a0597a-ab15-7a61-a2f5-e031e9fc2a20.\nAfter.";
+    render(
+      <LogsPage
+        connectionError={null}
+        connectionStatus="connected"
+        runs={[{ ...failedRun, output }]}
+      />,
+    );
+
+    const threadLink = screen.getByRole("link", {
+      name: "Started Codex thread 01a0597a-ab15-7a61-a2f5-e031e9fc2a20.",
+    });
+    expect(threadLink.getAttribute("href")).toBe(
+      "codex://threads/01a0597a-ab15-7a61-a2f5-e031e9fc2a20",
+    );
+    expect(document.querySelector(".run-log-output")?.textContent).toBe(output);
+    expect(screen.queryByRole("link", { name: "Before." })).toBeNull();
+    expect(screen.queryByRole("link", { name: "After." })).toBeNull();
+  });
 });

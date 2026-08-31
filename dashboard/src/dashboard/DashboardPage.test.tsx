@@ -26,6 +26,7 @@ const configuration: ActiveConfiguration = {
     features: ["dashboard"],
   },
   theme: "dark",
+  workingDirectories: ["/workspace/first", "/workspace/second"],
 };
 
 const dashboard: DashboardSnapshot = {
@@ -721,17 +722,23 @@ describe("DashboardPage", () => {
     const prompt = screen.getByLabelText("Review focus") as HTMLInputElement;
     expect(prompt.placeholder).toBe("Add areas to inspect");
     expect(prompt.value).toBe("start in a new work tree");
+    const workingDirectory = screen.getByLabelText(
+      "Working directory",
+    ) as HTMLSelectElement;
+    expect(workingDirectory.value).toBe("/workspace/first");
     expect(previewButton).toHaveBeenLastCalledWith(
       "reviews",
       actionsDashboard.sections[0].items[0],
       "always",
       0,
       "start in a new work tree",
+      "/workspace/first",
     );
 
     previewButton.mockResolvedValue(
       "codex exec '/review https://example.test/pull/42 focus on tests'",
     );
+    await user.selectOptions(workingDirectory, "/workspace/second");
     await user.clear(prompt);
     await user.type(prompt, "focus on tests");
     await screen.findByText(
@@ -745,6 +752,7 @@ describe("DashboardPage", () => {
       "always",
       0,
       "focus on tests",
+      "/workspace/second",
     );
 
     previewButton.mockResolvedValue(
@@ -759,7 +767,11 @@ describe("DashboardPage", () => {
       "always",
       1,
       null,
+      "/workspace/first",
     );
+    expect(
+      (screen.getByLabelText("Working directory") as HTMLSelectElement).value,
+    ).toBe("/workspace/first");
     expect(runButton).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: "Run" }));
@@ -769,6 +781,7 @@ describe("DashboardPage", () => {
       "always",
       1,
       null,
+      "/workspace/first",
     );
 
     await user.click(
@@ -900,6 +913,8 @@ describe("DashboardPage", () => {
   });
 
   it("shows detached commands as started without retaining cancellation", () => {
+    const output =
+      "Opened draft.\nStarted Codex thread 01a0597a-ab15-7a61-a2f5-e031e9fc2a20.\nReady.";
     render(
       <DashboardPage
         activeConfiguration={configuration}
@@ -916,7 +931,7 @@ describe("DashboardPage", () => {
           exitCode: null,
           id: "run-9",
           label: "Review",
-          output: "Command started.",
+          output,
           preview: "open a configured application",
           status: "started",
         }}
@@ -924,8 +939,18 @@ describe("DashboardPage", () => {
       />,
     );
 
-    expect(screen.getByText(/Started/)).toBeTruthy();
-    expect(screen.getByText("Command started.")).toBeTruthy();
+    expect(document.querySelector(".run-status")?.textContent).toMatch(
+      /^Started/,
+    );
+    const threadLink = screen.getByRole("link", {
+      name: "Started Codex thread 01a0597a-ab15-7a61-a2f5-e031e9fc2a20.",
+    });
+    expect(threadLink.getAttribute("href")).toBe(
+      "codex://threads/01a0597a-ab15-7a61-a2f5-e031e9fc2a20",
+    );
+    expect(document.querySelector(".run-output")?.textContent).toBe(output);
+    expect(screen.queryByRole("link", { name: "Opened draft." })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Ready." })).toBeNull();
     expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
   });
 });

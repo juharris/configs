@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use thiserror::Error;
 
-use crate::commands::{TemplateError, TemplateValues};
+use crate::commands::{TemplateError, TemplateValues, shell_quote};
 use crate::config::{
     ButtonConfig, ButtonListsConfig, ConfigurationSnapshot, ItemKind, ValidatedButton,
     ValidatedButtonLists,
@@ -21,6 +21,7 @@ pub struct ResolvedCommand {
     pub script: String,
     pub shell: PathBuf,
     pub timeout: Duration,
+    pub working_directory: PathBuf,
 }
 
 #[derive(Debug, Error)]
@@ -29,6 +30,8 @@ pub enum ButtonError {
     InvalidButton,
     #[error("the button prompt is not valid for this action")]
     InvalidPrompt,
+    #[error("the working directory is not configured")]
+    InvalidWorkingDirectory,
     #[error(transparent)]
     Template(#[from] TemplateError),
 }
@@ -58,6 +61,7 @@ pub fn resolve_command(
     list: ButtonList,
     index: usize,
     prompt: Option<&str>,
+    working_directory: &str,
 ) -> Result<ResolvedCommand, ButtonError> {
     let (button, validated) = configured_button(configuration, item.item_kind, list, index)?;
     if button.command.is_none() {
@@ -66,13 +70,25 @@ pub fn resolve_command(
     if button.prompt.is_some() != prompt.is_some() {
         return Err(ButtonError::InvalidPrompt);
     }
+    let working_directory = configuration
+        .configuration
+        .root
+        .application
+        .working_directories
+        .iter()
+        .find(|configured| configured.as_str() == working_directory)
+        .ok_or(ButtonError::InvalidWorkingDirectory)?;
 
     let values = TemplateValues::for_item(item).with_prompt(prompt);
     let template = validated
         .command
         .as_ref()
         .ok_or(ButtonError::InvalidButton)?;
-    let preview = template.preview(&values)?;
+    let preview = format!(
+        "cd -- {}\n{}",
+        shell_quote(working_directory),
+        template.preview(&values)?,
+    );
     Ok(ResolvedCommand {
         arguments: template.resolve_arguments(&values)?,
         detached: button.detached,
@@ -103,6 +119,7 @@ pub fn resolve_command(
                 .application
                 .command_timeout_seconds,
         ),
+        working_directory: working_directory.into(),
     })
 }
 

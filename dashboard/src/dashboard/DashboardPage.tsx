@@ -12,6 +12,7 @@ import type {
   RunSnapshot,
   SectionSnapshot,
 } from "../generated/transport";
+import { RunOutput } from "../RunOutput";
 import { isRunActive, runStatusLabel } from "../runState";
 import type {
   AutocompleteRequestParameters,
@@ -33,6 +34,7 @@ type DashboardPageProps = {
     buttonList: ButtonList,
     buttonIndex: number,
     prompt: string | null,
+    workingDirectory: string,
   ) => Promise<string>;
   refreshSection: (sectionId: string) => Promise<void>;
   requestAutocomplete: (
@@ -45,6 +47,7 @@ type DashboardPageProps = {
     buttonList: ButtonList,
     buttonIndex: number,
     prompt: string | null,
+    workingDirectory: string,
   ) => Promise<void>;
 };
 
@@ -110,15 +113,42 @@ export function DashboardPage({
               currentTime={currentTime}
               key={`${dashboard.configurationRevision.toString()}:${section.id}`}
               pageVisible={pageVisible}
-              previewButton={(item, buttonList, buttonIndex, prompt) =>
-                previewButton(section.id, item, buttonList, buttonIndex, prompt)
+              previewButton={(
+                item,
+                buttonList,
+                buttonIndex,
+                prompt,
+                workingDirectory,
+              ) =>
+                previewButton(
+                  section.id,
+                  item,
+                  buttonList,
+                  buttonIndex,
+                  prompt,
+                  workingDirectory,
+                )
               }
               refresh={() => refreshSection(section.id)}
               requestAutocomplete={requestAutocomplete}
-              runButton={(item, buttonList, buttonIndex, prompt) =>
-                runButton(section.id, item, buttonList, buttonIndex, prompt)
+              runButton={(
+                item,
+                buttonList,
+                buttonIndex,
+                prompt,
+                workingDirectory,
+              ) =>
+                runButton(
+                  section.id,
+                  item,
+                  buttonList,
+                  buttonIndex,
+                  prompt,
+                  workingDirectory,
+                )
               }
               section={section}
+              workingDirectories={activeConfiguration.workingDirectories}
             />
           ))}
         </div>
@@ -163,6 +193,7 @@ type RunButton = (
   buttonList: ButtonList,
   buttonIndex: number,
   prompt: string | null,
+  workingDirectory: string,
 ) => Promise<void>;
 
 type PreviewButton = (
@@ -170,6 +201,7 @@ type PreviewButton = (
   buttonList: ButtonList,
   buttonIndex: number,
   prompt: string | null,
+  workingDirectory: string,
 ) => Promise<string>;
 
 function DashboardSection({
@@ -185,6 +217,7 @@ function DashboardSection({
   requestAutocomplete,
   runButton,
   section,
+  workingDirectories,
 }: {
   autocompleteSettings: AutocompleteSettings;
   autocompletes: Readonly<Record<string, AutocompleteSnapshot>>;
@@ -200,6 +233,7 @@ function DashboardSection({
   ) => Promise<void>;
   runButton: RunButton;
   section: SectionSnapshot;
+  workingDirectories: readonly string[];
 }) {
   const [collapsed, setCollapsed] = useState(section.collapsed);
   const isRefreshing = section.status !== "idle";
@@ -355,6 +389,7 @@ function DashboardSection({
                 requestAutocomplete={requestAutocomplete}
                 runButton={runButton}
                 sectionId={section.id}
+                workingDirectories={workingDirectories}
               />
             ))}
           </ul>
@@ -381,6 +416,7 @@ function DashboardItemRow({
   requestAutocomplete,
   runButton,
   sectionId,
+  workingDirectories,
 }: {
   autocompleteSettings: AutocompleteSettings;
   autocompleteSnapshot: AutocompleteSnapshot | undefined;
@@ -395,6 +431,7 @@ function DashboardItemRow({
   ) => Promise<void>;
   runButton: RunButton;
   sectionId: string;
+  workingDirectories: readonly string[];
 }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [autocompleteError, setAutocompleteError] = useState<string | null>(
@@ -411,6 +448,9 @@ function DashboardItemRow({
   const [prompt, setPrompt] = useState("");
   const [selection, setSelection] = useState({ end: 0, start: 0 });
   const [submitting, setSubmitting] = useState(false);
+  const [workingDirectory, setWorkingDirectory] = useState(
+    workingDirectories[0] ?? "",
+  );
   const autocompleteIdRef = useRef<string | null>(null);
   const autocompleteSequenceRef = useRef(0);
   const cancelAutocompleteRef = useRef(cancelAutocomplete);
@@ -425,6 +465,7 @@ function DashboardItemRow({
   const status = itemStatusPresentation(item);
   const targetBranch =
     item.itemKind === "pull_request" ? item.targetBranch : null;
+  const workingDirectoryId = `${item.source ?? "default"}-${item.repository}-${item.number.toString()}-working-directory`;
 
   useEffect(() => {
     cancelAutocompleteRef.current = cancelAutocomplete;
@@ -522,6 +563,7 @@ function DashboardItemRow({
         pendingAction.buttonList,
         pendingAction.button.index,
         pendingAction.button.prompt === null ? null : prompt,
+        workingDirectory,
       )
         .then((resolvedPreview) => {
           if (active) {
@@ -548,13 +590,26 @@ function DashboardItemRow({
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [connectionStatus, item, pendingAction, previewButton, prompt]);
+  }, [
+    connectionStatus,
+    item,
+    pendingAction,
+    previewButton,
+    prompt,
+    workingDirectory,
+  ]);
 
   const execute = async (action: PendingAction, value: string | null) => {
     setActionError(null);
     setSubmitting(true);
     try {
-      await runButton(item, action.buttonList, action.button.index, value);
+      await runButton(
+        item,
+        action.buttonList,
+        action.button.index,
+        value,
+        workingDirectory,
+      );
       cancelCurrentAutocomplete();
       setPendingAction(null);
       setPrompt("");
@@ -578,6 +633,7 @@ function DashboardItemRow({
     setPreviewing(true);
     setPrompt(defaultPrompt);
     setSelection({ end: defaultPrompt.length, start: defaultPrompt.length });
+    setWorkingDirectory(workingDirectories[0] ?? "");
   };
 
   const cancelCurrentAutocomplete = () => {
@@ -714,6 +770,25 @@ function DashboardItemRow({
             );
           }}
         >
+          <label htmlFor={workingDirectoryId}>Working directory</label>
+          <select
+            autoFocus={pendingAction.button.prompt === null}
+            disabled={submitting}
+            id={workingDirectoryId}
+            onChange={(event) => {
+              setActionError(null);
+              setPreview(null);
+              setPreviewing(true);
+              setWorkingDirectory(event.target.value);
+            }}
+            value={workingDirectory}
+          >
+            {workingDirectories.map((directory) => (
+              <option key={directory} value={directory}>
+                {directory}
+              </option>
+            ))}
+          </select>
           {pendingAction.button.prompt === null ? null : (
             <>
               <label htmlFor={promptId}>
@@ -1003,7 +1078,11 @@ function RunDrawer({
       </header>
       <pre className="run-preview">{run.preview}</pre>
       <pre className="run-output">
-        {run.output === "" ? "Waiting for output…" : run.output}
+        {run.output === "" ? (
+          "Waiting for output…"
+        ) : (
+          <RunOutput output={run.output} />
+        )}
       </pre>
       {run.exitCode === null ? null : (
         <span className="run-exit-code">Exit {run.exitCode}</span>

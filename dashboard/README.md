@@ -5,7 +5,7 @@ It runs customizable local commands to find items, invoke coding agents and othe
 
 Pull requests and issues can each have ordered buttons that are always visible and advanced buttons revealed on demand.
 Commands stay next to the feature that uses them.
-Selecting a command button opens a pre-run view of the backend-resolved command, including item values and any configured prompt text, before an explicit **Run** action executes it.
+Selecting a command button opens a pre-run view of the backend-resolved command, including its working directory, item values, and any configured prompt text, before an explicit **Run** action executes it.
 
 Strongly typed Optify configuration can be split into focused files imported by root features.
 An Options page lets each person select ordered configuration directories, such as personal and private-work directories, and choose the root features to apply.
@@ -21,6 +21,11 @@ The output limit truncates the retained display text while the service continues
 A compact dashboard control opens `/logs`, which keeps the 100 most recent commands in memory for the lifetime of the local service.
 Each entry shows the exact backend-resolved command, status, exit code, and bounded output, so a failed command can be copied and run manually elsewhere.
 The dashboard does not persist this history to disk.
+
+Configure `application.working_directories` as a non-empty ordered list of absolute directories that exist on the dashboard host.
+Every issue and pull-request command picker defaults to the first directory and lets the person running it select another configured directory.
+The backend accepts only configured values, includes the selected directory in the command preview, and starts the command with that directory as its current working directory.
+URL buttons open directly and do not show the picker.
 
 ## Button templates
 

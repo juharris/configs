@@ -33,6 +33,12 @@ impl ConfigurationSnapshot {
             revision: self.revision,
             setup: self.setup.clone(),
             theme: self.configuration.root.appearance.theme,
+            working_directories: self
+                .configuration
+                .root
+                .application
+                .working_directories
+                .clone(),
         }
     }
 }
@@ -542,7 +548,7 @@ mod tests {
     }
 
     fn base_configuration() -> &'static str {
-        "options:\n  appearance:\n    theme: system\n  application:\n    command_timeout_seconds: 30\n    default_refresh_seconds: 60\n    max_concurrent_commands: 2\n    max_output_bytes_per_run: 4096\n    shell: /bin/bash\n  autocomplete:\n    command: printf '%s' '{autocomplete.request}'\n    debounce_milliseconds: 100\n    instruction: Suggest a useful edit.\n    minimum_characters: 2\n  buttons:\n    issues:\n      advanced: []\n      always: []\n    pull_requests:\n      advanced: []\n      always: []\n  sections:\n    - cache_ttl_seconds: 300\n      command: printf '[]'\n      id: base_items\n      item_kind: issue\n      items_per_page: 6\n      title: Items\n"
+        "options:\n  appearance:\n    theme: system\n  application:\n    command_timeout_seconds: 30\n    default_refresh_seconds: 60\n    max_concurrent_commands: 2\n    max_output_bytes_per_run: 4096\n    shell: /bin/bash\n    working_directories:\n      - /tmp\n  autocomplete:\n    command: printf '%s' '{autocomplete.request}'\n    debounce_milliseconds: 100\n    instruction: Suggest a useful edit.\n    minimum_characters: 2\n  buttons:\n    issues:\n      advanced: []\n      always: []\n    pull_requests:\n      advanced: []\n      always: []\n  sections:\n    - cache_ttl_seconds: 300\n      command: printf '[]'\n      id: base_items\n      item_kind: issue\n      items_per_page: 6\n      title: Items\n"
     }
 
     fn workspace_tempdir() -> TempDir {

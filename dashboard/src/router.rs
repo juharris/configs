@@ -89,6 +89,7 @@ impl MessageRouter {
                 item,
                 prompt,
                 section_id,
+                working_directory,
             } => {
                 self.preview_button
                     .handle(
@@ -98,6 +99,7 @@ impl MessageRouter {
                         button_list,
                         button_index,
                         prompt,
+                        working_directory,
                     )
                     .await
             }
@@ -144,6 +146,7 @@ impl MessageRouter {
                 item,
                 prompt,
                 section_id,
+                working_directory,
             } => {
                 self.run_button
                     .handle(
@@ -154,6 +157,7 @@ impl MessageRouter {
                         button_list,
                         button_index,
                         prompt,
+                        working_directory,
                     )
                     .await
             }
@@ -252,10 +256,18 @@ impl ButtonCommandResolver {
         button_list: ButtonList,
         button_index: usize,
         prompt: Option<&str>,
+        working_directory: &str,
     ) -> Result<ResolvedCommand, RequestError> {
         let (configuration, item) = self.context(configuration_revision, section_id, item)?;
-        resolve_command(&configuration, &item, button_list, button_index, prompt)
-            .map_err(RequestError::from)
+        resolve_command(
+            &configuration,
+            &item,
+            button_list,
+            button_index,
+            prompt,
+            working_directory,
+        )
+        .map_err(RequestError::from)
     }
 }
 
@@ -332,6 +344,7 @@ impl PreviewButtonHandler {
         button_list: ButtonList,
         button_index: usize,
         prompt: Option<String>,
+        working_directory: String,
     ) -> Result<ServerResponse, RequestError> {
         let command = self.resolver.resolve(
             configuration_revision,
@@ -340,6 +353,7 @@ impl PreviewButtonHandler {
             button_list,
             button_index,
             prompt.as_deref(),
+            &working_directory,
         )?;
         Ok(ServerResponse::ButtonPreviewed {
             preview: command.preview,
@@ -394,6 +408,7 @@ impl RunButtonHandler {
         button_list: ButtonList,
         button_index: usize,
         prompt: Option<String>,
+        working_directory: String,
     ) -> Result<ServerResponse, RequestError> {
         let command = self.resolver.resolve(
             configuration_revision,
@@ -402,6 +417,7 @@ impl RunButtonHandler {
             button_list,
             button_index,
             prompt.as_deref(),
+            &working_directory,
         )?;
         let run = self.process_service.start(connection_id, command);
         Ok(ServerResponse::ButtonRunAccepted { run })
@@ -490,9 +506,13 @@ impl From<DashboardServiceError> for RequestError {
 
 impl From<ButtonError> for RequestError {
     fn from(error: ButtonError) -> Self {
+        let field = match &error {
+            ButtonError::InvalidWorkingDirectory => "workingDirectory",
+            _ => "buttonIndex",
+        };
         Self {
             code: ErrorCode::InvalidButton,
-            field: Some("buttonIndex".to_owned()),
+            field: Some(field.to_owned()),
             message: error.to_string(),
             retryable: false,
         }

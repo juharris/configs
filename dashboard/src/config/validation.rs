@@ -126,6 +126,39 @@ fn validate_application(root: &RootConfig) -> Result<(), ConfigError> {
     }
     require_nonblank("autocomplete.instruction", &root.autocomplete.instruction)?;
 
+    if root.application.working_directories.is_empty() {
+        return Err(ConfigError::field(
+            "application.working_directories",
+            "must contain at least one directory",
+        ));
+    }
+    let mut working_directories = HashSet::new();
+    for (index, directory) in root.application.working_directories.iter().enumerate() {
+        let field = format!("application.working_directories[{index}]");
+        let path = Path::new(directory);
+        if !path.is_absolute() {
+            return Err(ConfigError::field(field, "must be an absolute path"));
+        }
+        let metadata = fs::metadata(path).map_err(|error| {
+            ConfigError::field(
+                field.clone(),
+                format!("cannot read {}: {error}", path.display()),
+            )
+        })?;
+        if !metadata.is_dir() {
+            return Err(ConfigError::field(
+                field,
+                format!("{} is not a directory", path.display()),
+            ));
+        }
+        if !working_directories.insert(directory) {
+            return Err(ConfigError::field(
+                "application.working_directories",
+                format!("contains the duplicate directory {directory}"),
+            ));
+        }
+    }
+
     let shell = Path::new(&root.application.shell);
     if !shell.is_absolute() {
         return Err(ConfigError::field(

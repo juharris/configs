@@ -479,7 +479,7 @@ fn escape_double_quoted(value: &str) -> String {
         .replace('"', "\\\"")
 }
 
-fn shell_quote(value: &str) -> String {
+pub(crate) fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 

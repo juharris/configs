@@ -18,6 +18,7 @@ pub struct ApplicationConfig {
     pub max_concurrent_commands: usize,
     pub max_output_bytes_per_run: usize,
     pub shell: String,
+    pub working_directories: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]

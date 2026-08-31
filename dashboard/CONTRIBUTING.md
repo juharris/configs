@@ -130,8 +130,8 @@ Leave `detached` unset for ordinary commands whose output and completion should 
 
 Do not introduce a named command registry merely to deduplicate similar strings.
 Keeping a complete command at its point of use makes personal configuration easier to read and change.
-Use ordinary shell commands such as `cd` directly in the command string when an action should start from a particular directory.
-The dashboard does not require or inspect a local checkout before enabling an action.
+Use `application.working_directories` instead of embedding `cd` in each command.
+This keeps the allowed directories configuration-driven and ensures the preview, command log, and actual process agree about the selected current working directory.
 
 ## Schema and live reload
 

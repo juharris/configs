@@ -1,7 +1,7 @@
 // This file is generated from Rust transport types.
 // Run `pnpm run bindings:generate` instead of editing it.
 
-export type ActiveConfiguration = { autocomplete: AutocompleteSettings, revision: number, setup: OptifySetup, theme: Theme, };
+export type ActiveConfiguration = { autocomplete: AutocompleteSettings, revision: number, setup: OptifySetup, theme: Theme, workingDirectories: Array<string>, };
 
 export type AutocompleteSettings = { debounceMilliseconds: number, minimumCharacters: number, };
 
@@ -17,7 +17,7 @@ export type ChecksStatus = "failed" | "passed" | "pending";
 
 export type ClientMessage = { "type": "authenticate", connectionId: string | null, lastEventSequence: number | null, protocolVersion: number, token: string, } | { "type": "request", request: ClientRequest, requestId: string, };
 
-export type ClientRequest = { "type": "apply_optify_setup", setup: OptifySetup, } | { "type": "cancel_autocomplete", editorId: string, } | { "type": "cancel_run", runId: string, } | { "type": "preview_button", buttonIndex: number, buttonList: ButtonList, configurationRevision: number, item: ItemReference, prompt: string | null, sectionId: string, } | { "type": "refresh_section", configurationRevision: number, sectionId: string, } | { "type": "request_autocomplete", autocompleteId: string, buttonIndex: number, buttonList: ButtonList, configurationRevision: number, draft: string, editorId: string, item: ItemReference, sectionId: string, selectionEnd: number, selectionStart: number, } | { "type": "run_button", buttonIndex: number, buttonList: ButtonList, configurationRevision: number, item: ItemReference, prompt: string | null, sectionId: string, };
+export type ClientRequest = { "type": "apply_optify_setup", setup: OptifySetup, } | { "type": "cancel_autocomplete", editorId: string, } | { "type": "cancel_run", runId: string, } | { "type": "preview_button", buttonIndex: number, buttonList: ButtonList, configurationRevision: number, item: ItemReference, prompt: string | null, sectionId: string, workingDirectory: string, } | { "type": "refresh_section", configurationRevision: number, sectionId: string, } | { "type": "request_autocomplete", autocompleteId: string, buttonIndex: number, buttonList: ButtonList, configurationRevision: number, draft: string, editorId: string, item: ItemReference, sectionId: string, selectionEnd: number, selectionStart: number, } | { "type": "run_button", buttonIndex: number, buttonList: ButtonList, configurationRevision: number, item: ItemReference, prompt: string | null, sectionId: string, workingDirectory: string, };
 
 export type DashboardActor = { login: string, url: string | null, };
 

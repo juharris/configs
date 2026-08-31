@@ -57,18 +57,21 @@ body {
 
 button,
 input,
+select,
 summary {
   font: inherit;
 }
 
 button,
 input,
+select,
 summary {
   -webkit-tap-highlight-color: transparent;
 }
 
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
 summary:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -659,7 +662,8 @@ summary:focus-visible {
   font-weight: 650;
 }
 
-.command-editor input {
+.command-editor input,
+.command-editor select {
   min-width: 12rem;
   height: 1.55rem;
   padding: 0 0.4rem;
@@ -669,6 +673,10 @@ summary:focus-visible {
   background: var(--control);
   color: var(--text);
   font-size: 0.7rem;
+}
+
+.command-editor select {
+  max-width: min(36rem, 100%);
 }
 
 .command-preview {
@@ -792,6 +800,10 @@ summary:focus-visible {
 .run-output {
   min-height: 7rem;
   max-height: 23rem;
+}
+
+.codex-thread-link {
+  color: var(--accent-hover);
 }
 
 .logs-heading {

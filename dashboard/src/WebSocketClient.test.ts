@@ -20,6 +20,7 @@ const configuration: ActiveConfiguration = {
   revision: 3,
   setup,
   theme: "dark",
+  workingDirectories: ["/workspace/first", "/workspace/second"],
 };
 
 const dashboard: DashboardSnapshot = {
@@ -57,7 +58,7 @@ describe("WebSocketClient", () => {
     expect(JSON.parse(socket.sent[0])).toEqual({
       connectionId: null,
       lastEventSequence: null,
-      protocolVersion: 9,
+      protocolVersion: 10,
       token: "token-1",
       type: "authenticate",
     });
@@ -66,7 +67,7 @@ describe("WebSocketClient", () => {
       connectionId: "connection-1",
       dashboard: null,
       eventSequence: 0,
-      protocolVersion: 9,
+      protocolVersion: 10,
       run: null,
       runs: [],
       setupStatus: "required",
@@ -122,6 +123,7 @@ describe("WebSocketClient", () => {
       { number: 42, repository: "shop/world", source: "github" },
       "focus on tests",
       "requested_reviews",
+      "/workspace/first",
     );
     const previewRequest = JSON.parse(socket.sent[3]) as {
       requestId: string;
@@ -140,6 +142,7 @@ describe("WebSocketClient", () => {
       { number: 42, repository: "shop/world", source: "github" },
       "focus on tests",
       "requested_reviews",
+      "/workspace/first",
     );
     const runRequest = JSON.parse(socket.sent[4]) as { requestId: string };
     socket.receive({
@@ -232,7 +235,7 @@ describe("WebSocketClient", () => {
       connectionId: "connection-1",
       dashboard,
       eventSequence: 0,
-      protocolVersion: 9,
+      protocolVersion: 10,
       run: null,
       runs: [],
       setupStatus: "required",
@@ -309,7 +312,7 @@ describe("WebSocketClient", () => {
     expect(JSON.parse(reconnectedSocket.sent[0])).toEqual({
       connectionId: "connection-1",
       lastEventSequence: 4,
-      protocolVersion: 9,
+      protocolVersion: 10,
       token: "token-2",
       type: "authenticate",
     });
@@ -318,7 +321,7 @@ describe("WebSocketClient", () => {
       connectionId: "connection-1",
       dashboard,
       eventSequence: 4,
-      protocolVersion: 9,
+      protocolVersion: 10,
       run,
       runs: [run],
       setupStatus: "configured",
@@ -381,7 +384,7 @@ function stubBootstrap(token: string) {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue({ protocolVersion: 9, token }),
+      json: vi.fn().mockResolvedValue({ protocolVersion: 10, token }),
       ok: true,
       status: 200,
     }),

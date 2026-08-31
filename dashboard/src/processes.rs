@@ -502,6 +502,7 @@ async fn run(
     process
         .args(["-c", &command.script, "personal-dashboard"])
         .args(&command.arguments)
+        .current_dir(&command.working_directory)
         .kill_on_drop(!command.detached)
         .stdin(Stdio::null())
         .stderr(Stdio::piped())
@@ -1009,6 +1010,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn starts_a_run_in_its_selected_working_directory() {
+        let connections = ConnectionHub::new();
+        let mut connection = connections.register(None).unwrap();
+        let service = ProcessService::new(connections);
+        let directory =
+            tempfile::tempdir_in(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target")).unwrap();
+        let mut selected = command("printf '%s' \"$PWD\"", 1_024);
+        selected.working_directory = directory.path().to_owned();
+
+        service.start(&connection.connection_id, selected);
+        let completed = terminal_run(&mut connection.receiver).await;
+
+        assert_eq!(completed.output, directory.path().display().to_string());
+        assert_eq!(completed.status, RunStatus::Completed);
+    }
+
+    #[tokio::test]
     async fn bounds_output_without_stopping_the_process_and_preserves_run_ownership() {
         let connections = ConnectionHub::new();
         let mut connection = connections.register(None).unwrap();
@@ -1122,6 +1140,7 @@ mod tests {
             script: script.to_owned(),
             shell: PathBuf::from("/bin/bash"),
             timeout: Duration::from_secs(2),
+            working_directory: PathBuf::from(env!("CARGO_MANIFEST_DIR")),
         }
     }
 

@@ -14,7 +14,7 @@ import type {
   ServerResponse,
 } from "./generated/transport";
 
-const PROTOCOL_VERSION = 9;
+const PROTOCOL_VERSION = 10;
 const RECONNECT_DELAYS = [250, 500, 1_000, 2_000, 5_000] as const;
 const REQUEST_TIMEOUT = 10_000;
 
@@ -128,6 +128,7 @@ export class WebSocketClient {
     item: ItemReference,
     prompt: string | null,
     sectionId: string,
+    workingDirectory: string,
   ): Promise<string> {
     return this.#sendRequest({
       buttonIndex,
@@ -137,6 +138,7 @@ export class WebSocketClient {
       prompt,
       sectionId,
       type: "preview_button",
+      workingDirectory,
     }).then((response) => {
       if (response.type !== "button_previewed") {
         throw new Error(
@@ -191,6 +193,7 @@ export class WebSocketClient {
     item: ItemReference,
     prompt: string | null,
     sectionId: string,
+    workingDirectory: string,
   ): Promise<RunSnapshot> {
     return this.#sendRequest({
       buttonIndex,
@@ -200,6 +203,7 @@ export class WebSocketClient {
       prompt,
       sectionId,
       type: "run_button",
+      workingDirectory,
     }).then((response) => {
       if (response.type !== "button_run_accepted") {
         throw new Error(

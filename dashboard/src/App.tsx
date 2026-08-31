@@ -170,6 +170,7 @@ export function App() {
         buttonList: ButtonList,
         buttonIndex: number,
         prompt: string | null,
+        workingDirectory: string,
       ) => {
         const client = clientRef.current;
         if (client === null || activeConfiguration === null) {
@@ -186,6 +187,7 @@ export function App() {
           },
           prompt,
           sectionId,
+          workingDirectory,
         );
       }}
       refreshSection={async (sectionId) => {
@@ -221,6 +223,7 @@ export function App() {
         buttonList: ButtonList,
         buttonIndex: number,
         prompt: string | null,
+        workingDirectory: string,
       ) => {
         const client = clientRef.current;
         if (client === null || activeConfiguration === null) {
@@ -237,6 +240,7 @@ export function App() {
           },
           prompt,
           sectionId,
+          workingDirectory,
         );
         acceptRun(acceptedRun);
       }}

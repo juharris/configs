@@ -37,6 +37,12 @@
         },
         "shell": {
           "type": "string"
+        },
+        "working_directories": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -44,7 +50,8 @@
         "default_refresh_seconds",
         "max_concurrent_commands",
         "max_output_bytes_per_run",
-        "shell"
+        "shell",
+        "working_directories"
       ],
       "type": "object"
     },

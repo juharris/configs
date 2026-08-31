@@ -4,7 +4,7 @@ options:
       always:
         - label: Investigate
           command: >-
-            cd; pi --print 'Investigate {item.url}. {prompt}'
+            pi --print 'Investigate {item.url}. {prompt}'
           detached: true
           prompt:
             default: Start in a new work tree
@@ -13,7 +13,7 @@ options:
       advanced:
         - label: Start work
           command: >-
-            cd; claude --print 'Implement {item.url}. {prompt}'
+            claude --print 'Implement {item.url}. {prompt}'
           detached: true
           prompt:
             label: Implementation details
@@ -25,7 +25,7 @@ options:
       always:
         - label: Review
           command: >-
-            cd; codex exec '/review {item.url} {prompt}'
+            codex exec '/review {item.url} {prompt}'
           detached: true
           prompt:
             label: Review focus
@@ -33,7 +33,7 @@ options:
       advanced:
         - label: Second opinion
           command: >-
-            cd; claude --print 'Review {item.url}. {prompt}'
+            claude --print 'Review {item.url}. {prompt}'
           detached: true
           prompt:
             label: Review focus

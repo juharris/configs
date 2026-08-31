@@ -4,7 +4,7 @@ use ts_rs::TS;
 
 use crate::config::ItemKind;
 
-pub const PROTOCOL_VERSION: u16 = 9;
+pub const PROTOCOL_VERSION: u16 = 10;
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -15,6 +15,7 @@ pub struct ActiveConfiguration {
     pub revision: u64,
     pub setup: OptifySetup,
     pub theme: Theme,
+    pub working_directories: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize, TS)]
@@ -104,6 +105,7 @@ pub enum ClientRequest {
         item: ItemReference,
         prompt: Option<String>,
         section_id: String,
+        working_directory: String,
     },
     RefreshSection {
         #[ts(type = "number")]
@@ -131,6 +133,7 @@ pub enum ClientRequest {
         item: ItemReference,
         prompt: Option<String>,
         section_id: String,
+        working_directory: String,
     },
 }
 
