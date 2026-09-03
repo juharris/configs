@@ -203,6 +203,12 @@ gacs() {
 	git_conditionally_commit "${message}"
 }
 
+git_rebase_with_reset() {
+	# `--soft` moves the branch pointer there while preserving the working tree and index.
+	git reset --soft "$(git merge-base origin/main HEAD)"
+	git commit --reuse-message=ORIG_HEAD^1
+}
+
 git_rebase_push() {
 	local branch_name="$1"
 

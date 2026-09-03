@@ -17,8 +17,6 @@ A real Slack draft appears in the compose box of the correct channel or thread, 
 - When in doubt, prefer creating a draft. The user can always send a draft, but cannot un-send a sent message.
 
 All disclosure, tone, formatting, and linking rules below apply to drafts as well, since the draft is what becomes the sent message.
-Skip the `:robot_face:` typing-indicator reaction for drafts — drafts can sit unsent for a long time, and the reaction would falsely signal an imminent reply.
-Add the reaction only when actually sending.
 
 ## AI Disclosure
 
@@ -41,12 +39,6 @@ This applies to all messages: DMs, channel posts. Never send a message without t
 > 🤖 *This comment was written by AI, but influenced directly and reviewed by Justin.*
 
 This applies to all comments: new threads, replies, and PR review comments. Never send a message without this prefix.
-
-## Typing Indicator
-
-Before composing a reply in Slack that is not a draft, add a :robot_face: reaction to the message you are responding to.
-This signals to the recipient that an AI-assisted reply is being composed.
-After sending the reply, remove the :robot_face: reaction.
 
 ## Tone
 
