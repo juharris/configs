@@ -16,9 +16,6 @@ There is more inspiration here: https://cbea.ms/git-commit/
 Never commit directly to the default branch (e.g. `main`, `master`). If on the default branch, create a new branch first:
 - In shared repositories, prefix the branch name with `jus/`.
 - Use `git switch --create <branch-name>` by default.
-- Use `gt create <branch-name> --message '<commit message>'` only when the user explicitly asks for Graphite, when working on a stacked PR, or when the repository/task instructions specifically require Graphite.
-  Never use Graphite when the user asks not to.
-  When using Graphite, load the /graphite skill and follow its workflow.
 
 ## Format
 

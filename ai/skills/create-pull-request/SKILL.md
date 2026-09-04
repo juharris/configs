@@ -11,9 +11,6 @@ Do not commit directly to main (unless explicitly asked); instead, make a new br
 In shared repositories, such as ones in the user's company, prefix the branch name with `jus/` to indicate that the branch is being worked on by the user.
 
 Use `git switch --create <branch-name>` to create a new branch by default.
-Use `gt create <branch-name> --message '<commit message>'` only when the user explicitly asks for Graphite, when working on a stacked PR, or when the repository/task instructions specifically require Graphite.
-Never use Graphite when the user asks not to.
-When using Graphite, load the /graphite skill and follow its workflow.
 
 Use the /create-commit-message skill to get instructions on how to create commit messages and what to include in the commit message.
 
@@ -105,8 +102,6 @@ Name the evidence category, such as "authored changed lines" or "approved the PR
 ## Submitting
 
 Use `git push -u origin <branch-name>` and `gh pr create --draft` by default.
-Use `gt submit --draft --view` only when the user explicitly asks for Graphite, when working on a stacked PR, or when the repository/task instructions specifically require Graphite.
-Never use Graphite when the user asks not to.
 When using `gh pr create`, provide the PR title and body from this skill instead of relying only on `--fill`.
 
 ### Opening the Finished Pull Request
@@ -121,15 +116,7 @@ Do not open the PR early, because the user should land on the finished PR with t
 Never pipe `--help` (or any other help/usage) output through `head`, `tail`, `sed`, or similar truncation tools.
 Help text is bounded and short by design; truncating it wastes time picking an arbitrary line count, hides flags and examples that usually live near the bottom, and forces re-runs when the first guess was too small.
 Run `<command> --help` (or `<command> <subcommand> --help`) directly and read the full output.
-This applies to every CLI you invoke for help — `gt`, `gh`, `git`, `dev`, `tec`, and anything else.
-
-### Capturing `gt submit` output
-
-`gt submit` streams progress over several seconds (validation → preparing → pushing → final URL).
-Do NOT pipe it through `tail`, `head`, or similar — those can return before the URL line is emitted, making it look like the submit hung when it actually succeeded.
-
-- Run `gt submit --no-interactive --draft` directly (no pipe) and let it complete so the full output, including the PR URL, is captured.
-- If the URL appears to be missing, do NOT re-run `gt submit` — it may have already created the PR. Check `gt log` for the PR number and URL instead.
+This applies to every CLI you invoke for help — `gh`, `git`, `dev`, `tec`, and anything else.
 
 ## Keeping the PR Description in Sync After Follow-Up Commits
 
@@ -144,18 +131,6 @@ After any additional commit or push to an already-open PR (review feedback, squa
 3. If the Summary or Test plan no longer matches the diff (a feature was reverted, scope shrunk, new files were added, etc.), update the PR body with `gh pr edit <number> --repo <owner>/<repo> --body "..."`.
 4. If the PR title no longer describes the diff, update it with `--title` in the same `gh pr edit` call.
 
-This applies equally whether the commit was added via `gt modify`, `gt squash`, `git commit --amend`, or a new commit — if the diff on GitHub has changed, the description probably needs to change too.
-
 ## Reporting Back to the User
 
 This is about your chat reply to the user, not the PR body itself.
-
-### If Graphite was used
-
-If — and only if — the pull request was created with `gt submit`, conclude your response to the user with the Graphite link as the very last line.
-`gt submit` prints a URL like `https://app.graphite.com/github/pr/<owner>/<repo>/<number>` — capture that URL from the submit output and end the message with it (plain URL or a markdown link is fine).
-
-### If Graphite was not used
-
-Conclude with a github.com link.
-Do not include a Graphite link when the PR was created with `gh pr create` or any other non-Graphite flow; do not construct a Graphite URL from the repo slug and PR number.
