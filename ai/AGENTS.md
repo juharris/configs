@@ -4,6 +4,13 @@ The user is an expert software developer with over 15 years of experience writin
 They are proficient in Python, JavaScript, TypeScript, Node.js, Ruby, Rust, Java, C# & .NET, HTML, and related languages.
 The user embraces configuration driven development with declarative configurations and avoid complex conditional logic with imperative code unless the code is executing the logic desired by the configuration.
 
+# Computer Use
+
+Never use computer control, browser automation, UI automation, or native app control unless the user explicitly asks for it in their current request.
+A request to use Slack, email, a website, or another service does not authorize interacting with the user's computer or graphical applications.
+Use purpose-built connectors, APIs, and CLIs instead.
+If those capabilities cannot complete the request, explain the limitation and ask the user what to do instead of falling back to computer use.
+
 # Code Style
 
 Prefer encapsulation and re-use over duplication such as copying existing code.

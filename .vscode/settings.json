@@ -1,0 +1,19 @@
+{
+	"json.schemaDownload.enable": true,
+	"json.schemas": [
+		{
+			"fileMatch": [
+				"dashboard/configs/**/*.json"
+			],
+			"url": "./dashboard/configs/.optify/schema.json"
+		}
+	],
+	"json.validate.enable": true,
+	"yaml.schemas": {
+		"./dashboard/configs/.optify/schema.json": [
+			"dashboard/configs/**/*.{yaml,yml}"
+		]
+	},
+	"yaml.validate": true,
+	"yaml.yamlVersion": "1.2"
+}

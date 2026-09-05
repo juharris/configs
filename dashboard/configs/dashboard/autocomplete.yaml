@@ -1,0 +1,10 @@
+options:
+  autocomplete:
+    command: >-
+      claude --print '{autocomplete.request}'
+    debounce_milliseconds: 300
+    instruction: >-
+      Suggest concise details that improve the draft instructions without
+      changing their intent or starting the work.
+    minimum_characters: 20
+

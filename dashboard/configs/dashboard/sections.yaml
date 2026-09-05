@@ -1,0 +1,34 @@
+options:
+  sections:
+    - id: authored_pull_requests
+      title: My pull requests
+      item_kind: pull_request
+      cache_ttl_seconds: 300
+      command: >-
+        gh search prs
+        --author @me
+        --state open
+        --json assignees,author,isDraft,labels,number,repository,state,title,updatedAt,url
+      items_per_page: 6
+
+    - id: requested_reviews
+      title: Reviews requested
+      item_kind: pull_request
+      cache_ttl_seconds: 300
+      command: >-
+        gh search prs
+        --review-requested @me
+        --state open
+        --json assignees,author,isDraft,labels,number,repository,state,title,updatedAt,url
+      items_per_page: 6
+
+    - id: assigned_issues
+      title: Assigned issues
+      item_kind: issue
+      cache_ttl_seconds: 300
+      command: >-
+        gh search issues
+        --assignee @me
+        --state open
+        --json assignees,author,labels,number,repository,state,title,updatedAt,url
+      items_per_page: 6

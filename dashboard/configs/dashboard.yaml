@@ -1,0 +1,6 @@
+imports:
+  - dashboard/appearance
+  - dashboard/application
+  - dashboard/autocomplete
+  - dashboard/buttons
+  - dashboard/sections

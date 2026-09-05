@@ -1,0 +1,368 @@
+use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use thiserror::Error;
+use tokio::sync::{mpsc, watch};
+
+use crate::config::ConfigurationSnapshot;
+use crate::messages::{
+    AutocompleteSnapshot, DashboardSnapshot, RunSnapshot, ServerEvent, ServerMessage,
+};
+
+const EVENT_REPLAY_CAPACITY: usize = 128;
+const OUTBOUND_QUEUE_CAPACITY: usize = 64;
+const CONNECTION_ID_PREFIX: &str = "connection-";
+const TOKEN_BYTES: usize = 32;
+const TOKEN_TTL: Duration = Duration::from_secs(30);
+
+/// Issues short-lived bootstrap credentials and consumes each credential once.
+pub struct BootstrapTokenStore {
+    tokens: Mutex<HashMap<String, Instant>>,
+    ttl: Duration,
+}
+
+impl BootstrapTokenStore {
+    pub fn new() -> Self {
+        Self::with_ttl(TOKEN_TTL)
+    }
+
+    pub fn consume(&self, token: &str) -> Result<bool, ConnectionError> {
+        let now = Instant::now();
+        let mut tokens = self.tokens.lock().map_err(|_| ConnectionError::Lock)?;
+        tokens.retain(|_, expires_at| *expires_at > now);
+        Ok(tokens
+            .remove(token)
+            .is_some_and(|expires_at| expires_at > now))
+    }
+
+    pub fn issue(&self) -> Result<String, ConnectionError> {
+        let token = random_hex()?;
+        let now = Instant::now();
+        let mut tokens = self.tokens.lock().map_err(|_| ConnectionError::Lock)?;
+        tokens.retain(|_, expires_at| *expires_at > now);
+        tokens.insert(token.clone(), now + self.ttl);
+        Ok(token)
+    }
+
+    fn with_ttl(ttl: Duration) -> Self {
+        Self {
+            tokens: Mutex::new(HashMap::new()),
+            ttl,
+        }
+    }
+}
+
+impl Default for BootstrapTokenStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Owns bounded per-tab queues and a bounded replay window for shared events.
+pub struct ConnectionHub {
+    connection_ids: Mutex<HashMap<String, u64>>,
+    connections: Mutex<HashMap<u64, mpsc::Sender<ServerMessage>>>,
+    events: Mutex<VecDeque<ServerMessage>>,
+    next_connection_id: AtomicU64,
+    next_event_sequence: AtomicU64,
+}
+
+impl ConnectionHub {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
+            connection_ids: Mutex::new(HashMap::new()),
+            connections: Mutex::new(HashMap::new()),
+            events: Mutex::new(VecDeque::with_capacity(EVENT_REPLAY_CAPACITY)),
+            next_connection_id: AtomicU64::new(1),
+            next_event_sequence: AtomicU64::new(1),
+        })
+    }
+
+    pub fn current_event_sequence(&self) -> u64 {
+        self.next_event_sequence.load(Ordering::Acquire) - 1
+    }
+
+    pub fn publish_autocomplete(
+        &self,
+        connection_id: u64,
+        autocomplete: AutocompleteSnapshot,
+    ) -> Result<(), ConnectionError> {
+        self.publish_targeted_event(
+            connection_id,
+            ServerEvent::AutocompleteUpdated { autocomplete },
+        )
+    }
+
+    pub fn publish_configuration(
+        &self,
+        snapshot: ConfigurationSnapshot,
+    ) -> Result<(), ConnectionError> {
+        self.publish_event(ServerEvent::ConfigurationReloaded {
+            configuration: snapshot.transport(),
+        })
+    }
+
+    pub fn publish_dashboard(&self, snapshot: DashboardSnapshot) -> Result<(), ConnectionError> {
+        self.publish_event(ServerEvent::DashboardUpdated {
+            dashboard: snapshot,
+        })
+    }
+
+    pub fn publish_run(
+        &self,
+        connection_id: &str,
+        run: RunSnapshot,
+    ) -> Result<(), ConnectionError> {
+        let socket_id = self
+            .connection_ids
+            .lock()
+            .map_err(|_| ConnectionError::Lock)?
+            .get(connection_id)
+            .copied();
+        if let Some(socket_id) = socket_id {
+            self.publish_targeted_event(socket_id, ServerEvent::RunUpdated { run })?;
+        }
+        Ok(())
+    }
+
+    fn publish_targeted_event(
+        &self,
+        connection_id: u64,
+        event: ServerEvent,
+    ) -> Result<(), ConnectionError> {
+        let sequence = self.next_event_sequence.fetch_add(1, Ordering::AcqRel);
+        let message = ServerMessage::Event {
+            event,
+            event_id: format!("event-{sequence}"),
+            sequence,
+        };
+        let mut connections = self.connections.lock().map_err(|_| ConnectionError::Lock)?;
+        let should_remove = connections
+            .get(&connection_id)
+            .is_none_or(|sender| !connection_remains_open(sender.try_send(message)));
+        if should_remove {
+            connections.remove(&connection_id);
+        }
+        Ok(())
+    }
+
+    fn publish_event(&self, event: ServerEvent) -> Result<(), ConnectionError> {
+        let sequence = self.next_event_sequence.fetch_add(1, Ordering::AcqRel);
+        let message = ServerMessage::Event {
+            event,
+            event_id: format!("event-{sequence}"),
+            sequence,
+        };
+
+        let mut events = self.events.lock().map_err(|_| ConnectionError::Lock)?;
+        if events.len() == EVENT_REPLAY_CAPACITY {
+            events.pop_front();
+        }
+        events.push_back(message.clone());
+        drop(events);
+
+        let mut connections = self.connections.lock().map_err(|_| ConnectionError::Lock)?;
+        connections.retain(|_, sender| connection_remains_open(sender.try_send(message.clone())));
+        Ok(())
+    }
+
+    pub fn register(
+        &self,
+        resumed_connection_id: Option<String>,
+    ) -> Result<RegisteredConnection, ConnectionError> {
+        let connection_id = resumed_connection_id
+            .filter(|connection_id| is_connection_id(connection_id))
+            .map_or_else(
+                || random_hex().map(|value| format!("{CONNECTION_ID_PREFIX}{value}")),
+                Ok,
+            )?;
+        let socket_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
+        let (sender, receiver) = mpsc::channel(OUTBOUND_QUEUE_CAPACITY);
+        self.connections
+            .lock()
+            .map_err(|_| ConnectionError::Lock)?
+            .insert(socket_id, sender);
+        self.connection_ids
+            .lock()
+            .map_err(|_| ConnectionError::Lock)?
+            .insert(connection_id.clone(), socket_id);
+        Ok(RegisteredConnection {
+            connection_id,
+            id: socket_id,
+            receiver,
+        })
+    }
+
+    pub fn replay_after(
+        &self,
+        sequence: Option<u64>,
+    ) -> Result<Vec<ServerMessage>, ConnectionError> {
+        let Some(sequence) = sequence else {
+            return Ok(Vec::new());
+        };
+        let events = self.events.lock().map_err(|_| ConnectionError::Lock)?;
+        let Some(first_sequence) = events.front().and_then(event_sequence) else {
+            return Ok(Vec::new());
+        };
+        if sequence.saturating_add(1) < first_sequence {
+            return Ok(Vec::new());
+        }
+        Ok(events
+            .iter()
+            .filter(|event| event_sequence(event).is_some_and(|current| current > sequence))
+            .cloned()
+            .collect())
+    }
+
+    pub fn send(&self, connection_id: u64, message: ServerMessage) {
+        let Ok(mut connections) = self.connections.lock() else {
+            return;
+        };
+        let should_remove = connections
+            .get(&connection_id)
+            .is_none_or(|sender| !connection_remains_open(sender.try_send(message)));
+        if should_remove {
+            connections.remove(&connection_id);
+        }
+    }
+
+    pub fn unregister(&self, connection_id: u64) {
+        if let Ok(mut connections) = self.connections.lock() {
+            connections.remove(&connection_id);
+        }
+        if let Ok(mut connection_ids) = self.connection_ids.lock() {
+            connection_ids.retain(|_, socket_id| *socket_id != connection_id);
+        }
+    }
+
+    pub async fn publish_config_events(
+        self: Arc<Self>,
+        mut snapshots: watch::Receiver<Option<ConfigurationSnapshot>>,
+    ) {
+        while snapshots.changed().await.is_ok() {
+            let snapshot = snapshots.borrow_and_update().clone();
+            if let Some(snapshot) = snapshot
+                && let Err(error) = self.publish_configuration(snapshot)
+            {
+                tracing::error!(%error, "could not publish configuration event");
+            }
+        }
+    }
+
+    pub async fn publish_dashboard_events(
+        self: Arc<Self>,
+        mut snapshots: watch::Receiver<Option<DashboardSnapshot>>,
+    ) {
+        while snapshots.changed().await.is_ok() {
+            let snapshot = snapshots.borrow_and_update().clone();
+            if let Some(snapshot) = snapshot
+                && let Err(error) = self.publish_dashboard(snapshot)
+            {
+                tracing::error!(%error, "could not publish dashboard event");
+            }
+        }
+    }
+}
+
+pub struct RegisteredConnection {
+    pub connection_id: String,
+    pub id: u64,
+    pub receiver: mpsc::Receiver<ServerMessage>,
+}
+
+#[derive(Debug, Error)]
+pub enum ConnectionError {
+    #[error("connection state lock was poisoned")]
+    Lock,
+    #[error("could not generate a bootstrap token: {0}")]
+    Random(String),
+}
+
+/// Keeps a live socket registered when only its bounded queue is temporarily full.
+fn connection_remains_open(result: Result<(), mpsc::error::TrySendError<ServerMessage>>) -> bool {
+    !matches!(result, Err(mpsc::error::TrySendError::Closed(_)))
+}
+
+fn event_sequence(message: &ServerMessage) -> Option<u64> {
+    match message {
+        ServerMessage::Event { sequence, .. } => Some(*sequence),
+        _ => None,
+    }
+}
+
+fn is_connection_id(value: &str) -> bool {
+    value
+        .strip_prefix(CONNECTION_ID_PREFIX)
+        .is_some_and(|token| {
+            token.len() == TOKEN_BYTES * 2 && token.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
+}
+
+fn random_hex() -> Result<String, ConnectionError> {
+    let mut bytes = [0_u8; TOKEN_BYTES];
+    getrandom::fill(&mut bytes).map_err(|error| ConnectionError::Random(error.to_string()))?;
+    Ok(bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use crate::messages::{ErrorCode, RunSnapshot, RunStatus, ServerMessage};
+
+    use super::{BootstrapTokenStore, ConnectionHub, OUTBOUND_QUEUE_CAPACITY};
+
+    #[test]
+    fn bootstrap_tokens_are_single_use_and_expire() {
+        let tokens = BootstrapTokenStore::new();
+        let token = tokens.issue().unwrap();
+
+        assert_eq!(token.len(), 64);
+        assert!(tokens.consume(&token).unwrap());
+        assert!(!tokens.consume(&token).unwrap());
+
+        let expired_tokens = BootstrapTokenStore::with_ttl(Duration::ZERO);
+        let expired = expired_tokens.issue().unwrap();
+        assert!(!expired_tokens.consume(&expired).unwrap());
+    }
+
+    #[test]
+    fn keeps_connection_after_outbound_queue_reaches_capacity() {
+        let connections = ConnectionHub::new();
+        let mut connection = connections.register(None).unwrap();
+        let run = RunSnapshot {
+            created_at: 1_787_742_000_000,
+            exit_code: None,
+            id: "run-1".to_owned(),
+            label: "Review".to_owned(),
+            output: String::new(),
+            preview: "review".to_owned(),
+            status: RunStatus::Running,
+        };
+
+        for _ in 0..=OUTBOUND_QUEUE_CAPACITY {
+            connections
+                .publish_run(&connection.connection_id, run.clone())
+                .unwrap();
+        }
+        for _ in 0..OUTBOUND_QUEUE_CAPACITY {
+            connection.receiver.try_recv().unwrap();
+        }
+
+        let response = ServerMessage::Error {
+            code: ErrorCode::Internal,
+            field: None,
+            message: "response".to_owned(),
+            request_id: Some("request-1".to_owned()),
+            retryable: true,
+        };
+        connections.send(connection.id, response.clone());
+
+        assert_eq!(connection.receiver.try_recv().unwrap(), response);
+    }
+}

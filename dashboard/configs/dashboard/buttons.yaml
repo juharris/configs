@@ -1,0 +1,42 @@
+options:
+  buttons:
+    issues:
+      always:
+        - label: Investigate
+          command: >-
+            pi --print 'Investigate {item.url}. {prompt}'
+          detached: true
+          prompt:
+            default: Start in a new work tree
+            label: Additional instructions
+            placeholder: Add context or constraints
+      advanced:
+        - label: Start work
+          command: >-
+            claude --print 'Implement {item.url}. {prompt}'
+          detached: true
+          prompt:
+            label: Implementation details
+            placeholder: Add constraints or acceptance criteria
+        - label: Open
+          url: '{item.url}'
+
+    pull_requests:
+      always:
+        - label: Review
+          command: >-
+            codex exec '/review {item.url} {prompt}'
+          detached: true
+          prompt:
+            label: Review focus
+            placeholder: Add areas to inspect closely
+      advanced:
+        - label: Second opinion
+          command: >-
+            claude --print 'Review {item.url}. {prompt}'
+          detached: true
+          prompt:
+            label: Review focus
+            placeholder: Add areas to inspect closely
+        - label: Open
+          url: '{item.url}'

@@ -1,0 +1,64 @@
+name: "[dashboard] CI"
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dashboard.yml
+      - dashboard/**
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/dashboard.yml
+      - dashboard/**
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Test and check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+        with:
+          version: 10.28.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          cache: pnpm
+          cache-dependency-path: dashboard/pnpm-lock.yaml
+          node-version: 22.22.2
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@75be91dd2711b583df57c31d0873b4145c89f1d9 # 1.94.1
+        with:
+          components: clippy, rustfmt
+          toolchain: 1.94.1
+
+      - name: Install dependencies
+        run: pnpm --dir dashboard install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm --dir dashboard run format:check
+
+      - name: Lint Rust
+        run: pnpm --dir dashboard run lint:rust
+
+      - name: Check TypeScript
+        run: pnpm --dir dashboard run typecheck
+
+      - name: Lint frontend
+        run: pnpm --dir dashboard run lint
+
+      - name: Check generated artifacts
+        run: pnpm --dir dashboard run artifacts:check
+
+      - name: "Test"
+        run: pnpm --dir dashboard run test
