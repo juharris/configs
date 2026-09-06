@@ -96,7 +96,7 @@ The user's credibility depends on correct commands. A wrong flag or invented sub
 
 # Development Commands
 
-@README.md
+See README.md and CONTRIBUTING.md in the current project.
 
 IMPORTANT: You MUST read the README.md in the current folder (or repository root) BEFORE running any build, lint, or test command.
 Do NOT guess or make up commands — use what the project documents.
