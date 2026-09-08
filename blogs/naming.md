@@ -1,87 +1,74 @@
 # Name Code After What It Does
 
-Names carry design pressure.
-A good name tells the next developer what a thing does and how to use it before they read the implementation.
-A weak name leaks history, implementation detail, branding, or motivation into every call site.
-That noise makes code harder to review, harder to change, and easier to misuse.
+A name should tell callers what a component does and how to use it before they read the implementation.
+Names become liabilities when they preserve temporary implementation details, historical reasons, or the name of a vendor that callers do not need to know about.
 
 Name classes, methods, variables, and modules after their behavior.
-Callers usually care about the promise a component makes, not the mechanism it uses today.
-If the mechanism matters, keep that detail inside the implementation or inside the narrow integration layer that owns it.
-
-TK Use Python for examples, not Ruby.
+Callers should depend on a promise rather than on the mechanism that currently fulfills it.
+Keep details about the mechanism inside the implementation or in the integration layer that owns it using comments, private method names, or less prominent classes.
 
 ```Python
-# Good
+# Good class names
 InvoiceTotalCalculator
 RetryableRequest
 SearchResultLimiter
 
-# Usually too implementation-focused
+# Avoid names tied to replaceable implementation details:
 RedisInvoiceTotalCalculator
 ExponentialBackoffRetryableRequest
 SqlSearchResultLimiter
 ```
 
-The implementation-focused names may become correct when the implementation defines the public contract.
-For example, `RedisCacheStore` makes sense when the caller deliberately chooses Redis-specific behavior implementing a `CacheStore` interface.
-It does not make sense when the class merely happens to use Redis behind a broader cache interface.
+An implementation-specific name is appropriate when the implementation is part of the public contract.
+For example, `RedisCacheStore` is useful when callers deliberately depend on Redis-specific behavior,
+when the class sits at the Redis integration boundary,
+or when implementing a `CacheStore` interface.
+Callers should still depend on the `CacheStore` interface rather than the specific Redis implementation using techniques such as dependency injection or factory methods to obtain an instance.
+The name is misleading when the class simply happens to use Redis behind a general cache interface.
 
-Brand and product names follow the same rule.
-Avoid them near domain logic.
-Use them at integration boundaries where the name tells the truth about the contract.
+Product and vendor names belong at integration boundaries where they identify the external contract.
+They usually do not belong in domain code.
 
 ```Python
-# Good near an integration boundary
+# Names that describe integrations
 AnthropicClient
 OpenAiClient
 GitHubWebhookVerifier
 
-# Usually too coupled for domain code
+# Names that couple domain code to an implementation vendor
 OpenAiSummaryGenerator
 GitHubSubscriptionState
 ```
 
-Domain code should speak the language of the product, not the vendor that currently powers it.
-Names like `SummaryGenerator` or `SubscriptionState` leave room to change the implementation without changing every caller.
-Names like `OpenAiSummaryGenerator` or `StripeSubscriptionState` force the vendor into places that should not care.
+Domain code should use the language of the product rather than the name of the vendor that currently powers it.
+`SummaryGenerator` can change providers without changing every caller.
+`AnthropicSummaryGenerator` makes the provider part of a domain-level dependency even when that dependency has no business meaning.
+It's also a confusing name because it sounds like it generates summaries of Anthropic, which doesn't make sense.
 
-Avoid naming things after why they exist.
-The reason for a change belongs in a comment that explains surprising context.
-It's tempting to put reasons in pull request descriptions, commit messages, issues, but developers and AI will likely not dig that deeply most of the time to find context.
-See [Agentic Coding Harness](./coding-harness.md) for guidance on how to structure documentation and guardrails to help both humans and AI understand the code.
-The name should still describe behavior.
+Names should describe behavior instead of the reason a change happened.
+Names such as `ChargebackFixQueue`, `Q3PaymentRetryPolicy`, and `PrivacyLaunchCustomerFilter` preserve temporary context that will become misleading.
+The reason may still matter, so record it in a nearby comment, docstring, test, or design document.
+Pull requests, commit messages, and issues provide useful history, but they should not be the only place to look for a reason that affects future maintenance
+because developers and AI will likely not dig that deeply to find context.
+See [Agentic Coding Harness](./coding-harness.md) for more on keeping that context easily available to people and AI agents.
 
-```ruby
-# Good
-FraudReviewQueue
-PaymentRetryPolicy
-CustomerVisibilityFilter
+Names should also make the operation specific enough to review.
+Avoid vague words such as `handle`, `process`, and `manage` which hide the decision the code makes.
+They can fit a genuinely broad interface, but a narrower verb usually gives callers more useful information.
 
-# Usually too tied to motivation or history
-ChargebackFixQueue
-Q3PaymentRetryPolicy
-PrivacyLaunchCustomerFilter
+```Python
+# Better
+parse_webhook_payload(payload)
+send_password_reset_email(user)
+archive_expired_sessions(now)
+
+# Weaker
+handle_payload(payload)
+process_user(user)
+manage_sessions(now)
 ```
 
-Names should also avoid vague verbs.
-Words such as `handle`, `process`, and `manage` often hide the decision the code makes.
-Sometimes they fit a broad interface, but they should earn that breadth.
-
-```TypeScript
-// Better
-parseWebhookPayload(payload)
-sendPasswordResetEmail(user)
-archiveExpiredSessions(now)
-
-// Weaker
-handlePayload(payload)
-processUser(user)
-manageSessions(now)
-```
-
-Clear names make comments lighter.
-When a method name explains what it does, comments can focus on why the code takes a non-obvious path.
-That separation matters.
-Callers need the contract first.
-Maintainers can read the implementation when they need the mechanics.
+Clear names reduce the need for comments.
+When a method name explains what it does, a comment can explain why it takes a surprising path rather than repeating the method's behavior.
+Callers can understand the contract first and read the implementation if they are curious about the mechanics
+and reasons why the code makes the decisions it does.
