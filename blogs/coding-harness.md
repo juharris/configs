@@ -4,7 +4,7 @@ An AI coding agent should work from the same documentation and standards as the 
 
 > Treat an AI coding agent as a junior engineer, and give it the same documentation and guardrails that make people successful.
 
-The agent may read and change code much faster than a person and to work effectively, it still needs context, constraints, and review.
+An agent may read and change code much faster than a person and to work effectively, it still needs context, constraints, and review.
 The most useful agent instructions provide that context without creating a second, private version of the project documentation.
 
 We should expect an agent to read the same README, CONTRIBUTING guide, architecture documentation, and tests that a developer would read.
@@ -30,6 +30,19 @@ See `docs/commit-messages.md` for guidance on writing clear and consistent commi
 
 When the guidance changes, one document changes.
 That is easier to keep accurate than a detailed copy in every agent configuration file.
+
+## When an Agent Gets Something Wrong
+
+When an agent makes an unexpected change,
+find out why and address the underlying issue.
+First, tell it not to change anything else.
+Ask it to explain why it made the change, which rule or assumption led it there, and how the mistake could have been prevented.
+At this stage, the agent should answer the questions rather than immediately editing the code again.
+
+The explanation can reveal a missing or ambiguous project rule, or perhaps conflicting guidance.
+After reviewing it, improve the appropriate durable source of guidance: update a README, instruction file, design document, test, or automated check.
+Commit that guidance adjacent to the code or change that exposed the problem.
+This makes the lesson visible to the next person and the next agent instead of relying on one conversation to preserve it.
 
 ## Document with Code
 
@@ -59,17 +72,42 @@ See [Name Code After What It Does](./naming.md) for more on this distinction.
 
 ### Keep Important Reasons Near the Code
 
-*Avoid Details in Exclusively in Git Artifacts*
+*Avoid keeping important details exclusively in Git artifacts.*
 
 When a reason affects how code must be changed safely, record that reason in a nearby comment, docstring, test, or design document in the repository.
 Pull requests, commit messages, and issues are valuable records of decisions,
 but they are difficult to find later.
-It's difficult for future maintainers and AI coding agents to check many old and seperate commits to piece together history.
+Future maintainers and AI coding agents should not have to search through many old and separate commits to piece together the history behind a code path.
 Link to a longer discussion when the full history matters, but do not make the linked history the only explanation available to the code's next reader.
+
+## Memories
+
+Agent memories must be avoided for agentic software development.
+Memory is a useful and entertaining feature in applications where people chat with an agent in an website or less technical application, but that use case differs from maintaining a codebase.
+
+Memory is opaque to the rest of the engineering team.
+Coding agents typically save memory locally to one device and exclusively for the context of that agent.
+Development practices become bifurcated as different rules apply for different people.
+People cannot review memories in a pull request, see who changed them, or easily determine which version of the code they describe.
+That opaqueness makes memory a poor place for project rules and technical decisions.
+
+Guidelines must be reviewed and committed alongside the code they govern.
+The repository gives people and agents a visible history, a review process, and a way to recover the guidance that applied to an older version of the system.
+If a rule matters to future changes, record it in a tracked document, test, or automated check.
+
+Memories are convenient because they store information without requiring a documentation change.
+They also become outdated, overly specific, or wrong as the code changes.
+People may forget a bad memory exists, but an agent can continue applying it because it remains in its context.
+The convenience is not worth making project behavior depend on information that the team cannot inspect and maintain together.
+
+Agents must not change memories as a routine response to a coding task.
+When a conversation reveals a useful project rule, first improve the appropriate checked-in documentation or automated check.
+
+Store personal preferences to use across projects in version control like I do in [my AI configurations](https://github.com/juharris/configs/tree/main/ai).
 
 ## Linting and Formatting
 
-People are agents are more effective with fast deterministics checks and rules that can be applied automatically.
+People and agents are more effective with fast, deterministic checks and rules that can be applied automatically.
 
 Formatting and linting turn recurring review expectations into checks that run consistently for every change.
 That automation lets reviewers spend their time on behavior, design, and risk instead of repeating mechanical comments.
@@ -77,7 +115,7 @@ That automation lets reviewers spend their time on behavior, design, and risk in
 A formatter decides how code is laid out.
 A linter checks whether code violates rules about correctness, safety, dependencies, or project conventions.
 Formatting should be automatic once the team has chosen its rules.
-Nobody should spend review time debating whitespace, quote style, import order, or line wrapping while reviewing changes to fix bugs or add new features.
+Nobody should spend review time debating whitespace, quote style, import order, or line wrapping while reviewing changes that fix bugs or add new features.
 
 Changes to formatting rules deserve a separate, clearly described pull request.
 That separation makes the proposal easy to find and review.
@@ -89,3 +127,17 @@ Linters enforce a different kind of agreement.
 They can catch unused variables, unsafe APIs, missing dependency declarations, forbidden imports, and project-specific hazards before a reviewer has to notice them.
 When a rule matters enough to repeat in review, it is worth asking whether the rule can become an automatically executed check.
 Documentation can describe a preference, but deterministic checks are more effective because they can enforce it for every contributor, including an AI agent.
+
+## Make Agents Aware of These Rules
+
+An agent needs to understand the rules explained in this article that governs its own instructions:
+the `AGENTS.md` file and skill files should remain brief, and durable project guidance should go in documentation intended for people as well as agents.
+Before adding detail to an agent-specific file, it should ask whether the information belongs in the README, CONTRIBUTING guide, a docs folder, a test, or another checked-in source of shared understanding.
+
+When an agent finds guidance that already exists in human-readable documentation,
+it should link to that guidance rather than copy it into `AGENTS.md` or a skill file.
+When the documentation does not exist, it should prefer adding the missing explanation to the repository's documentation and keep the agent-specific instruction limited to pointing agents there.
+If the correct location is unclear, the agent should look for clarification instead of choosing the easiest file to edit.
+
+This awareness matters most when an agent makes a mistake.
+The ability to edit code does not give an agent permission to continue editing after a person has challenged its approach.
