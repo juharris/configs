@@ -96,10 +96,10 @@ The user's credibility depends on correct commands. A wrong flag or invented sub
 
 # Development Commands
 
-@README.md
+See README.md and CONTRIBUTING.md in the current project.
 
 IMPORTANT: You MUST read the README.md in the current folder (or repository root) BEFORE running any build, lint, or test command.
-Do NOT guess or make up commands — use what the project documents.
+Do NOT guess or make up commands; use what the project documents.
 
 When the shell cannot find a documented command (e.g. `yarn`, `node`), activate the project's runtime first with `nvm use` before retrying.
 Do NOT invent alternative commands — fix the environment.
