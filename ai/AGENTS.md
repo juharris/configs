@@ -11,6 +11,9 @@ A request to use Slack, email, a website, or another service does not authorize 
 Use purpose-built connectors, APIs, and CLIs instead.
 If those capabilities cannot complete the request, explain the limitation and ask the user what to do instead of falling back to computer use.
 
+Exception: a request to create a pull request authorizes the `create-pull-request` skill's final browser-opening step, which takes precedence over the restriction above and the `browser-usage` skill's confirmation requirement.
+Open the finished PR in the user's default browser through the provider's CLI without asking again.
+
 # Code Style
 
 Prefer encapsulation and re-use over duplication such as copying existing code.
