@@ -40,6 +40,13 @@ Avoid drastically changing existing tests in pull requests that just add a new f
 Changing a few lines is fine and great to re-use a test, but changing many lines makes it look like we something was broken which looks like we will have regressions and makes it harder to review the new feature.
 Before of changes that delete many lines from existing tests.
 
+### Conditional Code
+
+Read a value once when a condition and its branch need it; store and reuse the result.
+For example, in Ruby: avoid checking hash membership with `key?` and then reading the same key with `[]` or `fetch`.
+Use `fetch` for required keys and its block form for a fallback that runs only when the key is missing.
+Use a truthiness guard only when treating missing keys, `nil`, and `false` alike is intentional.
+
 ### Code Quality
 
 - **Unnecessary complexity**: Question trim(), extra checks, mutex without explanation
