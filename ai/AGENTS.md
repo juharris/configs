@@ -16,6 +16,8 @@ Open the finished PR in the user's default browser through the provider's CLI wi
 
 # Code Style
 
+Before making software design or documentation decisions, read the relevant articles in [blogs/](~/workspace/configs/blogs/README.md).
+
 Prefer encapsulation and re-use over duplication such as copying existing code.
 Instead of copying code, encapsulate the code in a method or class and re-use that method or class where necessary.
 Executives such as the CEO and CTO of the large multi-national corporation where the user works reviews all of their code so the code needs to be robust and clear.
