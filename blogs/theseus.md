@@ -72,6 +72,12 @@ flowchart LR
 The language matters less than the boundary.
 The boundary lets the team improve a core capability without requiring every surrounding system to move at the same time.
 
+### Real-World Examples
+
+A few days after I published this article on GitHub, Stephen Toub published [Migrating the GitHub Copilot runtime to Rust, using Copilot](https://github.blog/ai-and-ml/generative-ai/migrating-the-github-copilot-runtime-to-rust-using-copilot/) on September 16, 2026.
+Their migration follows exactly this approach: replace components in place, connect the existing TypeScript to Rust through interoperability bridges, and run the existing end-to-end tests against each replacement while continuing to ship.
+The result is a shared Rust library that applications in multiple languages can use through the existing SDK API.
+
 ## Microservices as Bridges
 
 A service boundary can provide a similar bridge when a library cannot cross the required runtime or ownership boundary.
