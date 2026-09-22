@@ -1,6 +1,10 @@
 # Keep Building the Ship
 *The Ship of Theseus and Software Engineering*
 
+<p align="center" width="100%">
+  <img src="./assets/theseus.png" alt="Ship of Theseus" width="66%"/>
+</p>
+
 When an existing system needs to change, the safest and easiest path is usually to replace it one meaningful part at a time.
 That approach preserves the capabilities that users and other systems already rely on while allowing the implementation to evolve.
 
