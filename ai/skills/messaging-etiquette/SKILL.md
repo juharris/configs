@@ -183,13 +183,15 @@ Prefer bulleted lists with descriptive text for each item, so that people can re
 Give references to documentation and code to support claims.
 Prefer using links such as links to GitHub or documentation, but relative file paths are also acceptable when appropriate and links cannot be determined.
 
-## GitHub Pull Requests
+## Pull Request Reviews
 
 - **Never post PR-level comments** (i.e. never use `gh pr comment`). PR-level comments are noise.
-- **Always use pending draft review comments by default** when replying to pull request review threads or adding review feedback on behalf of Justin.
+- **Keep new review feedback pending by default.**
   Create the pending review comment and tell Justin it is ready for review.
-  Do not submit or publish the review unless Justin explicitly asks to send, submit, publish, or post it immediately and not make it pending or a draft.
-  Use a draft or pending by default for all comments.
-- **Always use line-level review comments** that point to specific code in the diff.
+  Do not submit an entire review unless Justin explicitly asks to publish it.
+- **Reply within an existing relevant thread; never create a duplicate thread as a workaround for missing draft-reply support.**
+  Requests to reply to or elaborate on a specific comment follow the targeted-reply exception in [review-pr](../review-pr/SKILL.md#replies-to-existing-review-threads).
+  That exception permits only the requested reply, and an explicit draft-only instruction still applies.
+- **For new code findings, use line-level review comments** that point to specific code in the diff.
   Use `gh api` to create pending review comments on specific lines.
 - If there is no specific line the comment applies to, first reconsider whether the comment is necessary at all. If it is, attach it to the first changed file at the file level (not a specific line).

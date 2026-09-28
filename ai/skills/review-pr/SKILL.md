@@ -14,17 +14,32 @@ Read those files first, then:
 2. Check for existing PR comments with `gh pr comments $0` and inline review comments with the GitHub API.
    Treat Justin-authored inline comments that explicitly ask his AI to add detail, add details, or explain something
    as high-priority review work.
-   Always reply to those threads before creating new comments.
+   Address those threads before creating new comments, following the existing-thread policy below.
 3. Review according to the guidelines.
 4. Provide structured feedback with specific line references.
 5. Only add comments to files on specific lines or the file itself or respond to existing comments if they are relevant to the review.
   Always make it clear that you are AI by prefixing comments with how you identify yourself as AI.
   When a review comment was directly influenced by a specific hint or direction from Justin in the chat, note this in the comment (e.g., "🤖 AI Review (influenced directly by Justin): ...") to distinguish it from independently generated feedback.
   Never comment directly on the pull request and only comment in files.
-  Prefer to reply to existing relevant comment threads over starting new threads in a file.
-  Always reply to Justin-authored threads that explicitly ask his AI to add more detail, provide details,
-  or explain the reasoning, for example "My AI will explain why."
+  Reply to existing relevant comment threads instead of starting new threads in a file.
+  Follow [Replies to Existing Review Threads](#replies-to-existing-review-threads), including its exception to the pending default.
+  Apply that policy to Justin-authored threads that explicitly ask his AI to add more detail, provide details, or explain the reasoning, for example "My AI will explain why."
 6. In the final response, include a Markdown link to the reviewed PR so Justin can open it quickly.
+
+## Replies to Existing Review Threads
+
+When feedback elaborates on an existing comment or addresses the same concern, reply in that existing thread.
+A new comment on the same file and line is still a new thread.
+Never create a duplicate thread to preserve pending state or work around a provider limitation.
+
+When Justin asks to reply to, elaborate on, add detail to, or explain a specific existing comment, that request authorizes that targeted reply.
+Prefer a pending reply when the provider supports it.
+If a pending reply cannot be attached to that existing thread, publish the requested reply there without asking again, unless Justin explicitly required draft-only feedback.
+This targeted-reply exception takes precedence over the default of keeping feedback pending; it does not authorize submitting an entire review or publishing unrelated draft comments.
+For explicit draft-only requests, or when publication is not otherwise authorized, keep the proposed reply in chat and explain the limitation instead of starting a new thread.
+
+Identify the existing root comment or thread ID before writing, then verify the returned reply references that same parent or thread.
+If a duplicate was already created, preserve its content, correct the placement within the authorized scope, and remove only that duplicate.
 
 ## Review Heuristics
 
@@ -99,7 +114,9 @@ Custom formats are often hard to parse robustly and become expensive to maintain
 
 **Always write the full JSON payload to a temp file and use `--input`** to submit reviews. Using `--field 'comments=[...]'` causes `gh api` to treat the JSON array as a string, resulting in a 422 error.
 
-**Always post reviews as PENDING (draft), never submit them.** Justin reviews and submits the comments himself.
+**Keep new review findings PENDING (draft) by default.**
+Justin reviews and submits those comments himself.
+Targeted replies follow [Replies to Existing Review Threads](#replies-to-existing-review-threads); do not submit an entire pending review to publish one reply.
 To create a pending review, **omit the `event` field entirely** from the payload — this leaves the review in `PENDING` state.
 Do NOT pass `"event": "COMMENT"`, `"event": "APPROVE"`, or `"event": "REQUEST_CHANGES"`, as any of these submits the review immediately.
 
@@ -135,7 +152,8 @@ Use a heredoc with `'ENDJSON'` (quoted) to prevent shell interpolation of `$`, `
 **Never guess line numbers from the diff output or mental arithmetic.**
 The `gh pr diff` output includes diff headers (`diff`, `index`, `---`, `+++`, `@@`) and `+`/`-` prefixes that make it easy to miscount. Reading the raw diff and eyeballing line numbers is unreliable.
 
-**Before posting ANY comment, export the PR file to /tmp and use `Read` to verify.**
+**Before posting a new anchored comment, export the PR file to /tmp and use `Read` to verify its location.**
+Replies inherit the existing thread's anchor; verify the parent or thread ID instead of creating a new anchor.
 
 **NEVER use `git checkout` to pull PR files into the working tree.** Always use `git show` to export to `/tmp`.
 
@@ -145,7 +163,8 @@ git fetch origin <commit-sha> && git show <commit-sha>:<file-path> > /tmp/pr-<fi
 
 Then use the `Read` tool on `/tmp/pr-<filename>` to see actual line numbers. Find the exact line for the comment and use that number.
 
-**Final verification:** Before submitting the review JSON, print each `line` value and the code expected at that line to confirm they match. Do NOT skip this step.
+**Final verification:** Before submitting the review JSON, print each new line-level comment's `line` value and the code expected at that line to confirm they match.
+Do NOT skip this step for line-level comments.
 
 ## Pull Request Titles
 Pull request titles must be concise and describe what was changed.
