@@ -80,6 +80,9 @@ Important: `gh search prs` and `gh pr view` expose different `--json` fields. If
 
 ### Slack — overnight and the last 3 days
 
+Slack pictures and screenshots are optional; missing image access is not a failure of the required Slack integration.
+Continue with text and documents without requesting reconnection solely for pictures, and disclose material evidence gaps without inferring image contents.
+
 - Fetch all unread DMs, mentions, and threads.
 - Fetch outstanding saved Slack tasks/reminders (filter for saved/open items).
 - Fetch Justin's own recent Slack messages since the 3-day cutoff, to detect threads he replied to that now have follow-ups. Use `count: 50` or lower — higher counts can exceed the token limit; if the response reports truncation with a file path, read that file in chunks rather than retrying with the same count.
