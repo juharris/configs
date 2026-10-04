@@ -13,9 +13,9 @@ An `AGENTS.md` file or skill should tell the agent where to find those sources, 
 
 My personal `AGENTS.md` contains the following:
 
-> See README.md and CONTRIBUTING.md in the current project.
-> IMPORTANT: You MUST read the README.md in the current folder (or repository root) BEFORE running any build, lint, or test command.
-> Do NOT guess or make up commands; use what the project documents.
+> Before changing a project or running its development commands, read its `README.md` and `CONTRIBUTING.md`.
+> In a monorepo, read the root guidance and the applicable files in the affected package or subproject.
+> Follow that guidance to choose validation commands; never guess or invent commands.
 
 That instruction points the agent to the project's source of truth.
 It also gives the same direction to a new team member who needs to learn how the project works.
