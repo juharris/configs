@@ -4,7 +4,7 @@ Personal configuration files for Claude Code and other AI tools.
 
 ## Contents
 
-- `AGENTS.md`: Personal instructions loaded by Claude Code in all projects (symlinked to `~/.claude/CLAUDE.md`)
+- `AGENTS.md`: Personal instructions loaded by AI tools in all projects (symlinked to `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.copilot/copilot-instructions.md`, and `~/.pi/agent/AGENTS.md`)
 - `code-review-guidelines.md`: Guidelines for the `/review-pr` skill
 - `skills/`: Custom Claude Code skills
 - `setup.sh`: Script to create symlinks for a new machine

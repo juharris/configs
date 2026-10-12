@@ -26,6 +26,7 @@ SKILL_TARGETS=(
 CONTEXT_TARGETS=(
   "$CLAUDE_DIR/CLAUDE.md"
   "$CODEX_DIR/AGENTS.md"
+  "$COPILOT_DIR/copilot-instructions.md"
   "$HOME/.pi/agent/AGENTS.md"
 )
 
