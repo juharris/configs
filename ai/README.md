@@ -24,6 +24,10 @@ mkdir -p ~/workspace/configs
 ~/workspace/configs/ai/setup.sh
 ```
 
+On Windows, run it from Git Bash with [Developer Mode](https://learn.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development) enabled, or from an elevated shell.
+Git Bash copies files instead of linking them by default, so the script forces native Windows symlinks and stops if it cannot create them.
+Re-running the script replaces copies that are identical to the files in this repository with symlinks.
+
 ### 3. Verify the setup
 
 ```bash
