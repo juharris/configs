@@ -10,6 +10,7 @@ use axum::routing::{any, get};
 use axum::{Json, Router};
 use tower_http::trace::TraceLayer;
 
+use crate::chat::ChatRuntime;
 use crate::config::ConfigService;
 use crate::connections::{BootstrapTokenStore, ConnectionHub};
 use crate::messages::{BootstrapResponse, PROTOCOL_VERSION};
@@ -69,6 +70,7 @@ pub async fn serve(
             "could not bind Personal Dashboard to http://{address}; stop the process using port {port} and try again: {error}"
         )
     })?;
+    tokio::spawn(ChatRuntime::new(&config_service).run());
     let (dashboard_service, dashboard_runtime) = DashboardService::new(config_service.clone());
     tokio::spawn(dashboard_runtime.run());
     let application = application(config_service, dashboard_service);

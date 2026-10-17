@@ -6,6 +6,10 @@ mod validation;
 pub use runtime_schema::RuntimeSchema;
 pub use service::{ConfigReloadService, ConfigService, ConfigServiceError, ConfigurationSnapshot};
 pub use types::{
-    ButtonConfig, ButtonListsConfig, DashboardFeatureFile, ItemKind, PartialRootConfig, RootConfig,
+    ButtonConfig, ButtonListsConfig, ChatAgentConfig, ChatCommandConfig, ChatCommandsConfig,
+    ChatConfig, ChatListenerConfig, ChatModelsConfig, ChatReplyConfig, DashboardFeatureFile,
+    ItemKind, PartialRootConfig, RootConfig,
 };
-pub use validation::{ConfigError, ValidatedButton, ValidatedButtonLists, ValidatedRootConfig};
+pub use validation::{
+    ConfigError, ValidatedButton, ValidatedButtonLists, ValidatedChat, ValidatedRootConfig,
+};

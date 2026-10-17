@@ -5,7 +5,9 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
-use super::types::{ButtonConfig, ButtonListsConfig, RootConfig};
+use super::types::{
+    ButtonConfig, ButtonListsConfig, ChatCommandsConfig, ChatConfig, ChatModelsConfig, RootConfig,
+};
 use crate::commands::{CommandTemplate, Placeholder, PlainTemplate, TemplateError};
 
 #[derive(Clone, Debug)]
@@ -20,9 +22,21 @@ pub struct ValidatedButtonLists {
     pub always: Vec<ValidatedButton>,
 }
 
+/// Holds the chat configuration with its compiled command templates.
+#[derive(Clone, Debug)]
+pub struct ValidatedChat {
+    pub acknowledgement: Option<CommandTemplate>,
+    pub config: ChatConfig,
+    pub listener: CommandTemplate,
+    pub reply: CommandTemplate,
+    pub resume: CommandTemplate,
+    pub start: CommandTemplate,
+}
+
 #[derive(Clone, Debug)]
 pub struct ValidatedRootConfig {
     pub autocomplete: CommandTemplate,
+    pub chat: Option<Arc<ValidatedChat>>,
     pub issue_buttons: ValidatedButtonLists,
     pub pull_request_buttons: ValidatedButtonLists,
     pub root: Arc<RootConfig>,
@@ -39,21 +53,20 @@ impl ValidatedRootConfig {
         validate_application(&root)?;
 
         let shell = Path::new(&root.application.shell);
-        let autocomplete = CommandTemplate::compile(
-            root.autocomplete.command.clone(),
+        let autocomplete = compile_command(
+            "autocomplete.command",
+            &root.autocomplete.command,
             &Placeholder::autocomplete(),
-        )
-        .and_then(|template| {
-            if !template.contains(Placeholder::AutocompleteRequest) {
-                return Err(TemplateError::UnavailablePlaceholder {
-                    placeholder: "autocomplete.request is required".to_owned(),
-                });
-            }
-            template.validate_bash_syntax(shell)?;
-            Ok(template)
-        })
-        .map_err(|error| ConfigError::field("autocomplete.command", error))?;
+            &[Placeholder::AutocompleteRequest],
+            shell,
+        )?;
 
+        let chat = root
+            .chat
+            .as_ref()
+            .map(|chat| validate_chat(chat, &root.application.working_directories, shell))
+            .transpose()?
+            .map(Arc::new);
         let issue_buttons = validate_button_lists(&root.buttons.issues, "buttons.issues", shell)?;
         let pull_request_buttons =
             validate_button_lists(&root.buttons.pull_requests, "buttons.pull_requests", shell)?;
@@ -61,6 +74,7 @@ impl ValidatedRootConfig {
 
         Ok(Self {
             autocomplete,
+            chat,
             issue_buttons,
             pull_request_buttons,
             root: Arc::new(root),
@@ -83,6 +97,31 @@ impl ConfigError {
             message: error.to_string(),
         }
     }
+}
+
+/// Compiles a command template, requires its mandatory placeholders, and checks its Bash syntax.
+fn compile_command(
+    field: &str,
+    source: &str,
+    allowed_placeholders: &HashSet<Placeholder>,
+    required_placeholders: &[Placeholder],
+    shell: &Path,
+) -> Result<CommandTemplate, ConfigError> {
+    let template = CommandTemplate::compile(source, allowed_placeholders)
+        .map_err(|error| ConfigError::field(field, error))?;
+    if let Some(missing) = required_placeholders
+        .iter()
+        .find(|placeholder| !template.contains(**placeholder))
+    {
+        return Err(ConfigError::field(
+            field,
+            format!("must use the {{{missing}}} placeholder"),
+        ));
+    }
+    template
+        .validate_bash_syntax(shell)
+        .map_err(|error| ConfigError::field(field, error))?;
+    Ok(template)
 }
 
 fn validate_application(root: &RootConfig) -> Result<(), ConfigError> {
@@ -285,6 +324,122 @@ fn validate_button_lists(
     })
 }
 
+fn validate_chat(
+    chat: &ChatConfig,
+    working_directories: &[String],
+    shell: &Path,
+) -> Result<ValidatedChat, ConfigError> {
+    if !working_directories.contains(&chat.working_directory) {
+        return Err(ConfigError::field(
+            "chat.working_directory",
+            "must be one of application.working_directories",
+        ));
+    }
+    for (field, value) in [
+        ("chat.agent.timeout_seconds", chat.agent.timeout_seconds),
+        (
+            "chat.listener.restart_seconds",
+            chat.listener.restart_seconds,
+        ),
+    ] {
+        if value == 0 {
+            return Err(ConfigError::field(field, "must be greater than zero"));
+        }
+    }
+    validate_chat_commands(&chat.commands)?;
+    validate_chat_models(&chat.models)?;
+    require_nonblank("chat.reply.prefix", &chat.reply.prefix)?;
+
+    let agent = Placeholder::agent();
+    Ok(ValidatedChat {
+        acknowledgement: chat
+            .acknowledgement
+            .as_deref()
+            .map(|source| {
+                compile_command(
+                    "chat.acknowledgement",
+                    source,
+                    &Placeholder::acknowledgement(),
+                    &[Placeholder::MessageId],
+                    shell,
+                )
+            })
+            .transpose()?,
+        config: chat.clone(),
+        listener: compile_command(
+            "chat.listener.command",
+            &chat.listener.command,
+            &HashSet::new(),
+            &[],
+            shell,
+        )?,
+        reply: compile_command(
+            "chat.reply.command",
+            &chat.reply.command,
+            &Placeholder::reply(),
+            &[Placeholder::ConversationId, Placeholder::ReplyText],
+            shell,
+        )?,
+        resume: compile_command(
+            "chat.agent.resume",
+            &chat.agent.resume,
+            &agent,
+            &[Placeholder::MessageText],
+            shell,
+        )?,
+        start: compile_command(
+            "chat.agent.start",
+            &chat.agent.start,
+            &agent,
+            &[Placeholder::MessageText],
+            shell,
+        )?,
+    })
+}
+
+fn validate_chat_commands(commands: &ChatCommandsConfig) -> Result<(), ConfigError> {
+    let mut names = HashSet::new();
+    for (key, command) in commands.entries() {
+        let field = format!("chat.commands.{key}");
+        require_nonblank(&format!("{field}.description"), &command.description)?;
+        require_word(&format!("{field}.name"), &command.name)?;
+        if !names.insert(&command.name) {
+            return Err(ConfigError::field(
+                format!("{field}.name"),
+                format!("duplicate command name {}", command.name),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_chat_models(models: &ChatModelsConfig) -> Result<(), ConfigError> {
+    if models.available.is_empty() {
+        return Err(ConfigError::field(
+            "chat.models.available",
+            "must contain at least one model",
+        ));
+    }
+    let mut available = HashSet::new();
+    for (index, model) in models.available.iter().enumerate() {
+        let field = format!("chat.models.available[{index}]");
+        require_word(&field, model)?;
+        if !available.insert(model) {
+            return Err(ConfigError::field(
+                field,
+                format!("duplicate model {model}"),
+            ));
+        }
+    }
+    if !available.contains(&models.default) {
+        return Err(ConfigError::field(
+            "chat.models.default",
+            "must be one of chat.models.available",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_sections(
     root: &RootConfig,
     shell: &Path,
@@ -321,12 +476,13 @@ fn validate_sections(
                     "must be greater than zero",
                 ));
             }
-            let command = CommandTemplate::compile(section.command.clone(), &HashSet::new())
-                .and_then(|template| {
-                    template.validate_bash_syntax(shell)?;
-                    Ok(template)
-                })
-                .map_err(|error| ConfigError::field(format!("{field}.command"), error))?;
+            let command = compile_command(
+                &format!("{field}.command"),
+                &section.command,
+                &HashSet::new(),
+                &[],
+                shell,
+            )?;
             Ok(ValidatedSection { command })
         })
         .collect()
@@ -339,12 +495,25 @@ fn require_nonblank(field: &str, value: &str) -> Result<(), ConfigError> {
     Ok(())
 }
 
+/// Requires a single word because chat messages separate a command or model name from its argument with whitespace.
+fn require_word(field: &str, value: &str) -> Result<(), ConfigError> {
+    require_nonblank(field, value)?;
+    if value.chars().any(char::is_whitespace) {
+        return Err(ConfigError::field(field, "cannot contain whitespace"));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
 
-    use super::validate_button;
-    use crate::config::types::{ButtonConfig, PromptConfig};
+    use super::{validate_button, validate_chat};
+    use crate::chat::tests::chat_config;
+    use crate::config::types::{ButtonConfig, ChatConfig, PromptConfig};
+
+    /// Pairs a change that invalidates the chat configuration with the expected field and message.
+    type InvalidChatCase = (fn(&mut ChatConfig), &'static str, &'static str);
 
     #[test]
     fn rejects_a_blank_prompt_default() {
@@ -365,5 +534,71 @@ mod tests {
 
         assert_eq!(error.field, "buttons.always[0].prompt.default");
         assert_eq!(error.message, "cannot be blank");
+    }
+
+    #[test]
+    fn validates_chat_directories_commands_models_and_templates() {
+        let directories = ["/tmp".to_owned()];
+        let shell = Path::new("/bin/bash");
+        assert!(validate_chat(&chat_config(), &directories, shell).is_ok());
+
+        let cases: [InvalidChatCase; 9] = [
+            (
+                |chat| chat.working_directory = "/elsewhere".to_owned(),
+                "chat.working_directory",
+                "must be one of application.working_directories",
+            ),
+            (
+                |chat| chat.agent.timeout_seconds = 0,
+                "chat.agent.timeout_seconds",
+                "must be greater than zero",
+            ),
+            (
+                |chat| chat.commands.stop.name = "/ai".to_owned(),
+                "chat.commands.stop.name",
+                "duplicate command name /ai",
+            ),
+            (
+                |chat| chat.commands.help.name = "/h elp".to_owned(),
+                "chat.commands.help.name",
+                "cannot contain whitespace",
+            ),
+            (
+                |chat| chat.models.available.clear(),
+                "chat.models.available",
+                "must contain at least one model",
+            ),
+            (
+                |chat| chat.models.default = "gpt".to_owned(),
+                "chat.models.default",
+                "must be one of chat.models.available",
+            ),
+            (
+                |chat| chat.reply.prefix = " ".to_owned(),
+                "chat.reply.prefix",
+                "cannot be blank",
+            ),
+            (
+                |chat| chat.agent.start = "agent".to_owned(),
+                "chat.agent.start",
+                "must use the {message.text} placeholder",
+            ),
+            (
+                |chat| chat.listener.command = "listen {message.text}".to_owned(),
+                "chat.listener.command",
+                "placeholder {message.text} is not available in this context",
+            ),
+        ];
+        for (change, field, message) in cases {
+            let mut chat = chat_config();
+            change(&mut chat);
+
+            let error = validate_chat(&chat, &directories, shell).unwrap_err();
+
+            assert_eq!(
+                (error.field.as_str(), error.message.as_str()),
+                (field, message)
+            );
+        }
     }
 }

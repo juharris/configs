@@ -1,9 +1,11 @@
 pub mod artifacts;
 pub mod autocomplete;
 pub mod buttons;
+pub mod chat;
 pub mod commands;
 pub mod config;
 pub mod connections;
+pub mod execution;
 pub mod items;
 pub mod messages;
 pub mod processes;
@@ -11,3 +13,5 @@ pub mod router;
 pub mod server;
 pub mod session;
 pub mod state;
+#[cfg(test)]
+mod test_support;

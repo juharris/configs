@@ -159,6 +159,184 @@
       ],
       "type": "object"
     },
+    "ChatAgentConfig": {
+      "additionalProperties": false,
+      "description": "Defines the commands that run one turn of a chat conversation.",
+      "properties": {
+        "resume": {
+          "description": "Runs every later turn of a conversation and receives that turn's message text.",
+          "type": "string"
+        },
+        "start": {
+          "description": "Runs the first turn of a conversation and receives that turn's message text.",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "description": "Limits how long one turn may run before it is interrupted.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "resume",
+        "start",
+        "timeout_seconds"
+      ],
+      "type": "object"
+    },
+    "ChatCommandConfig": {
+      "additionalProperties": false,
+      "description": "Names one chat command and describes it in the help reply.",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "description": "Is the first word of a message that runs this command, such as `/ai`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "description",
+        "name"
+      ],
+      "type": "object"
+    },
+    "ChatCommandsConfig": {
+      "additionalProperties": false,
+      "description": "Names the commands that control chat conversations.\n\nA message that does not start with one of these names is queued for the conversation's next turn.",
+      "properties": {
+        "help": {
+          "$ref": "#/$defs/ChatCommandConfig"
+        },
+        "model": {
+          "$ref": "#/$defs/ChatCommandConfig"
+        },
+        "start": {
+          "$ref": "#/$defs/ChatCommandConfig"
+        },
+        "status": {
+          "$ref": "#/$defs/ChatCommandConfig"
+        },
+        "steer": {
+          "$ref": "#/$defs/ChatCommandConfig"
+        },
+        "stop": {
+          "$ref": "#/$defs/ChatCommandConfig"
+        }
+      },
+      "required": [
+        "help",
+        "model",
+        "start",
+        "status",
+        "steer",
+        "stop"
+      ],
+      "type": "object"
+    },
+    "ChatConfig": {
+      "additionalProperties": false,
+      "description": "Connects coding-agent conversations to an external chat through configured commands.",
+      "properties": {
+        "acknowledgement": {
+          "description": "Runs after the dashboard accepts a message, for example to add a reaction.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "agent": {
+          "$ref": "#/$defs/ChatAgentConfig"
+        },
+        "commands": {
+          "$ref": "#/$defs/ChatCommandsConfig"
+        },
+        "listener": {
+          "$ref": "#/$defs/ChatListenerConfig"
+        },
+        "models": {
+          "$ref": "#/$defs/ChatModelsConfig"
+        },
+        "reply": {
+          "$ref": "#/$defs/ChatReplyConfig"
+        },
+        "working_directory": {
+          "description": "Is the current working directory for every chat command and must be one of `application.working_directories`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent",
+        "commands",
+        "listener",
+        "models",
+        "reply",
+        "working_directory"
+      ],
+      "type": "object"
+    },
+    "ChatListenerConfig": {
+      "additionalProperties": false,
+      "description": "Defines the long-running command that prints incoming chat messages.",
+      "properties": {
+        "command": {
+          "description": "Prints one JSON object per line with `id`, `text`, and `thread` fields.",
+          "type": "string"
+        },
+        "restart_seconds": {
+          "description": "Is the delay before the dashboard restarts a listener that exited.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "command",
+        "restart_seconds"
+      ],
+      "type": "object"
+    },
+    "ChatModelsConfig": {
+      "additionalProperties": false,
+      "description": "Lists the models that chat conversations can select.",
+      "properties": {
+        "available": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "default": {
+          "description": "Is the model for new conversations and must be one of `available`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "available",
+        "default"
+      ],
+      "type": "object"
+    },
+    "ChatReplyConfig": {
+      "additionalProperties": false,
+      "description": "Defines how the dashboard posts replies into a conversation.",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "prefix": {
+          "description": "Starts every reply so the dashboard can ignore its own replies when the listener prints them.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "command",
+        "prefix"
+      ],
+      "type": "object"
+    },
     "ItemKind": {
       "enum": [
         "issue",
@@ -203,6 +381,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/ButtonsConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chat": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChatConfig"
             },
             {
               "type": "null"

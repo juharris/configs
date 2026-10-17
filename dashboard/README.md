@@ -13,7 +13,7 @@ The light, dark, or system theme is configured in an Optify feature file with th
 Sections, commands, buttons, prompts, and other behavior remain in the configuration files.
 A single start command launches the local service and opens the dashboard in the browser.
 
-Delivery phases 1 through 6 are implemented.
+Delivery phases 1 through 7 are implemented.
 The repository contains the Axum and React/Vite scaffold, the Options page and browser store, typed Optify configuration loading and reloads, generated schema and transport artifacts, example feature files, embedded release assets, authenticated WebSocket synchronization, configured item discovery with per-command caching and pagination, configured actions and prompts, generic process streaming and cancellation, and the dense dashboard UI.
 Configured prompt autocomplete debounces requests, cancels superseded editor processes, bounds suggestions, and requires an explicit user action before applying one.
 Button processes remain server-owned across WebSocket reconnects.
@@ -21,6 +21,7 @@ The output limit truncates the retained display text while the service continues
 A compact dashboard control opens `/logs`, which keeps the 100 most recent commands in memory for the lifetime of the local service.
 Each entry shows the exact backend-resolved command, status, exit code, and bounded output, so a failed command can be copied and run manually elsewhere.
 The dashboard does not persist this history to disk.
+Optional [chat](#chat) runs coding-agent conversations from a chat client, with one thread per conversation.
 
 Configure `application.working_directories` as a non-empty ordered list of absolute directories that exist on the dashboard host.
 Every issue and pull-request command picker defaults to the first directory and lets the person running it select another configured directory.
@@ -76,6 +77,59 @@ fi
 ```
 
 `{autocomplete.request}` is reserved for the configured autocomplete command and is not available to buttons.
+
+## Chat
+
+The optional `chat` configuration lets you start and continue coding-agent conversations from a chat client, such as a private conversation with yourself in Slack.
+The dashboard has no built-in chat or agent integration.
+Configured commands listen for messages, run agent turns, and post replies, so the same feature works with any chat client or agent CLI that a script can drive.
+
+The listener is a long-running command that prints one JSON object per line:
+
+```json
+{"id": "https://example.slack.com/archives/D123/p1700000000000100", "text": "/ai fix the flaky test", "thread": null}
+```
+
+`thread` is the `id` of the message that started the thread, or `null` outside a thread.
+The listener decides which messages the dashboard may act on, so print only your own messages from a conversation that nobody else can post in.
+
+A start message outside a thread starts a conversation, and the conversation's replies go to that message's thread.
+Each later reply in the thread is a prompt for the same conversation.
+Command names are configured; these examples use the names from the configuration in the [technical specification](SPEC.md#chat).
+
+| Command           | In a conversation thread                                                    | Outside a thread                              |
+| ----------------- | --------------------------------------------------------------------------- | --------------------------------------------- |
+| `/ai <prompt>`    | Queues the prompt                                                           | Starts a conversation                         |
+| any other text    | Queues the text unchanged, including agent commands such as skills          | Ignored                                       |
+| `/steer <prompt>` | Interrupts the running turn and starts the next turn with this prompt first | Explains that steering requires a thread      |
+| `/stop`           | Interrupts the running turn and clears the queue                            | Interrupts every turn and clears every queue  |
+| `/model [name]`   | Shows or sets the model for the next turn                                   | Shows or sets the model for new conversations |
+| `/status`         | Shows the conversation's state, model, and queue                            | Lists running conversations                   |
+| `/help`           | Lists the commands                                                          | Lists the commands                            |
+
+Queuing is the default.
+A conversation runs one turn at a time, and the next turn delivers every message that arrived in the meantime.
+Steering interrupts the agent process with `SIGINT` and then resumes the same session, because a non-interactive agent command cannot accept new text mid-turn.
+Start a message with a space when your chat client would otherwise intercept a leading `/`.
+
+The dashboard replies with each turn's final standard output, a failure summary, or a command result.
+Every reply starts with `chat.reply.prefix`, and messages that start with the prefix are ignored so the dashboard does not answer itself.
+An optional acknowledgement command, such as adding a reaction, confirms that a message was queued.
+
+Chat commands can fill in these placeholders:
+
+| Placeholder                 | Filled-in value                                              | Commands                            |
+| --------------------------- | ------------------------------------------------------------ | ----------------------------------- |
+| `{conversation.id}`         | ID of the message that started the conversation              | `agent`, `acknowledgement`, `reply` |
+| `{conversation.model}`      | Model selected for the turn                                  | `agent`                             |
+| `{conversation.session_id}` | Dashboard-generated UUID for starting and resuming a session | `agent`                             |
+| `{message.id}`              | ID of the message being acknowledged                         | `acknowledgement`                   |
+| `{message.text}`            | Messages delivered by the turn, separated by blank lines     | `agent`                             |
+| `{reply.text}`              | Prefixed reply text                                          | `reply`                             |
+
+`agent.start` runs the first turn and `agent.resume` runs later turns with the same `{conversation.session_id}`.
+Conversations are kept in memory, so restarting the dashboard forgets them.
+The listener starts once a browser tab has applied a valid Optify setup that enables chat.
 
 ## Documentation
 

@@ -24,13 +24,26 @@ pub struct PlainTemplate {
 #[derive(Clone, Debug, Default)]
 pub struct TemplateValues {
     autocomplete_request: Option<String>,
+    conversation_id: Option<String>,
+    conversation_model: Option<String>,
+    conversation_session_id: Option<String>,
     item_number: Option<String>,
     item_repository: Option<String>,
     item_url: Option<String>,
+    message_id: Option<String>,
+    message_text: Option<String>,
     prompt: Option<String>,
+    reply_text: Option<String>,
 }
 
 impl TemplateValues {
+    pub fn for_conversation(id: &str) -> Self {
+        Self {
+            conversation_id: Some(id.to_owned()),
+            ..Self::default()
+        }
+    }
+
     pub fn for_item(item: &DashboardItem) -> Self {
         Self {
             item_number: Some(item.number.to_string()),
@@ -45,18 +58,49 @@ impl TemplateValues {
         self
     }
 
+    pub fn with_conversation_model(mut self, model: &str) -> Self {
+        self.conversation_model = Some(model.to_owned());
+        self
+    }
+
+    pub fn with_conversation_session_id(mut self, session_id: &str) -> Self {
+        self.conversation_session_id = Some(session_id.to_owned());
+        self
+    }
+
+    pub fn with_message_id(mut self, id: &str) -> Self {
+        self.message_id = Some(id.to_owned());
+        self
+    }
+
+    pub fn with_message_text(mut self, text: &str) -> Self {
+        self.message_text = Some(text.to_owned());
+        self
+    }
+
     pub fn with_prompt(mut self, prompt: Option<&str>) -> Self {
         self.prompt = prompt.map(str::to_owned);
+        self
+    }
+
+    pub fn with_reply_text(mut self, text: &str) -> Self {
+        self.reply_text = Some(text.to_owned());
         self
     }
 
     fn value(&self, placeholder: Placeholder) -> Result<&str, TemplateError> {
         let value = match placeholder {
             Placeholder::AutocompleteRequest => self.autocomplete_request.as_deref(),
+            Placeholder::ConversationId => self.conversation_id.as_deref(),
+            Placeholder::ConversationModel => self.conversation_model.as_deref(),
+            Placeholder::ConversationSessionId => self.conversation_session_id.as_deref(),
             Placeholder::ItemNumber => self.item_number.as_deref(),
             Placeholder::ItemRepository => self.item_repository.as_deref(),
             Placeholder::ItemUrl => self.item_url.as_deref(),
+            Placeholder::MessageId => self.message_id.as_deref(),
+            Placeholder::MessageText => self.message_text.as_deref(),
             Placeholder::Prompt => self.prompt.as_deref(),
+            Placeholder::ReplyText => self.reply_text.as_deref(),
         };
         value.ok_or_else(|| TemplateError::UnavailableValue {
             placeholder: placeholder.to_string(),
@@ -188,13 +232,32 @@ impl CommandTemplate {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Placeholder {
     AutocompleteRequest,
+    ConversationId,
+    ConversationModel,
+    ConversationSessionId,
     ItemNumber,
     ItemRepository,
     ItemUrl,
+    MessageId,
+    MessageText,
     Prompt,
+    ReplyText,
 }
 
 impl Placeholder {
+    pub fn acknowledgement() -> HashSet<Self> {
+        HashSet::from([Self::ConversationId, Self::MessageId])
+    }
+
+    pub fn agent() -> HashSet<Self> {
+        HashSet::from([
+            Self::ConversationId,
+            Self::ConversationModel,
+            Self::ConversationSessionId,
+            Self::MessageText,
+        ])
+    }
+
     pub fn autocomplete() -> HashSet<Self> {
         HashSet::from([Self::AutocompleteRequest])
     }
@@ -212,13 +275,23 @@ impl Placeholder {
         HashSet::from([Self::ItemNumber, Self::ItemRepository, Self::ItemUrl])
     }
 
+    pub fn reply() -> HashSet<Self> {
+        HashSet::from([Self::ConversationId, Self::ReplyText])
+    }
+
     fn parse(value: &str) -> Option<Self> {
         match value {
             "autocomplete.request" => Some(Self::AutocompleteRequest),
+            "conversation.id" => Some(Self::ConversationId),
+            "conversation.model" => Some(Self::ConversationModel),
+            "conversation.session_id" => Some(Self::ConversationSessionId),
             "item.number" => Some(Self::ItemNumber),
             "item.repository" => Some(Self::ItemRepository),
             "item.url" => Some(Self::ItemUrl),
+            "message.id" => Some(Self::MessageId),
+            "message.text" => Some(Self::MessageText),
             "prompt" => Some(Self::Prompt),
+            "reply.text" => Some(Self::ReplyText),
             _ => None,
         }
     }
@@ -226,10 +299,16 @@ impl Placeholder {
     fn validation_value(self) -> &'static str {
         match self {
             Self::AutocompleteRequest => "request",
+            Self::ConversationId => "conversation",
+            Self::ConversationModel => "model",
+            Self::ConversationSessionId => "00000000-0000-4000-8000-000000000000",
             Self::ItemNumber => "1",
             Self::ItemRepository => "owner/repository",
             Self::ItemUrl => "https://github.com/owner/repository/issues/1",
+            Self::MessageId => "message",
+            Self::MessageText => "text",
             Self::Prompt => "prompt",
+            Self::ReplyText => "reply",
         }
     }
 }
@@ -238,10 +317,16 @@ impl Display for Placeholder {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(match self {
             Self::AutocompleteRequest => "autocomplete.request",
+            Self::ConversationId => "conversation.id",
+            Self::ConversationModel => "conversation.model",
+            Self::ConversationSessionId => "conversation.session_id",
             Self::ItemNumber => "item.number",
             Self::ItemRepository => "item.repository",
             Self::ItemUrl => "item.url",
+            Self::MessageId => "message.id",
+            Self::MessageText => "message.text",
             Self::Prompt => "prompt",
+            Self::ReplyText => "reply.text",
         })
     }
 }
