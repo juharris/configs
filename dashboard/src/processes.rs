@@ -1,17 +1,20 @@
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
-use std::process::{ExitStatus, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::process::ExitStatus;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncReadExt};
-use tokio::process::{Child, Command};
+use tokio::process::Child;
 use tokio::sync::{Notify, mpsc, oneshot};
 
 use crate::buttons::ResolvedCommand;
 use crate::connections::ConnectionHub;
+use crate::execution::{
+    CaptureLimits, ExecutionError, ShellScript, Termination, capture, terminate,
+};
 use crate::messages::{AutocompleteSnapshot, AutocompleteStatus, RunSnapshot, RunStatus};
 
 // A short grace catches synchronous launcher failures without making the dashboard own the work.
@@ -344,11 +347,6 @@ enum AutocompleteOutcome {
     Failed(String),
 }
 
-struct BoundedOutput {
-    bytes: Vec<u8>,
-    exceeded: bool,
-}
-
 #[derive(Debug, Error)]
 pub enum ProcessError {
     #[error("process state lock was poisoned")]
@@ -376,92 +374,42 @@ async fn run_autocomplete(
         _ = &mut cancel => return AutocompleteOutcome::Cancelled,
     };
 
-    let mut process = Command::new(&invocation.shell);
-    process
-        .args(["-c", &invocation.script, "personal-dashboard"])
-        .args(&invocation.arguments)
-        .kill_on_drop(true)
-        .stdin(Stdio::null())
-        .stderr(Stdio::piped())
-        .stdout(Stdio::piped());
-    #[cfg(unix)]
-    process.process_group(0);
-    let mut child = match process.spawn() {
-        Ok(child) => child,
-        Err(_) => {
-            return AutocompleteOutcome::Failed(
-                "The configured autocomplete command could not be started.".to_owned(),
-            );
+    let script = ShellScript {
+        arguments: invocation.arguments,
+        script: invocation.script,
+        shell: invocation.shell,
+        working_directory: None,
+    };
+    let limits = CaptureLimits {
+        max_output_bytes: invocation.max_output_bytes,
+        timeout: invocation.timeout,
+    };
+    let output = match capture(&script, limits, Termination::Kill, &mut cancel).await {
+        Ok(output) => output,
+        Err(error) => {
+            let message = match error {
+                ExecutionError::Cancelled => return AutocompleteOutcome::Cancelled,
+                ExecutionError::OutputLimit => {
+                    "The autocomplete command exceeded the configured output limit."
+                }
+                ExecutionError::OutputRead(_) => {
+                    "The autocomplete command output could not be read."
+                }
+                ExecutionError::Start(_) => {
+                    "The configured autocomplete command could not be started."
+                }
+                ExecutionError::Status(_) => "The autocomplete command status could not be read.",
+                ExecutionError::Timeout => "The configured autocomplete command timed out.",
+            };
+            return AutocompleteOutcome::Failed(message.to_owned());
         }
     };
-
-    let remaining = Arc::new(AtomicUsize::new(invocation.max_output_bytes));
-    let stderr = child
-        .stderr
-        .take()
-        .expect("configured autocomplete stderr pipe is available");
-    let stdout = child
-        .stdout
-        .take()
-        .expect("configured autocomplete stdout pipe is available");
-    let mut stderr_reader = tokio::spawn(read_bounded_output(stderr, remaining.clone()));
-    let mut stdout_reader = tokio::spawn(read_bounded_output(stdout, remaining));
-    let deadline = tokio::time::sleep(invocation.timeout);
-    tokio::pin!(deadline);
-    let status = tokio::select! {
-        _ = &mut cancel => {
-            terminate(&mut child).await;
-            stderr_reader.abort();
-            stdout_reader.abort();
-            return AutocompleteOutcome::Cancelled;
-        }
-        _ = &mut deadline => {
-            terminate(&mut child).await;
-            stderr_reader.abort();
-            stdout_reader.abort();
-            return AutocompleteOutcome::Failed(
-                "The configured autocomplete command timed out.".to_owned(),
-            );
-        }
-        status = child.wait() => match status {
-            Ok(status) => status,
-            Err(_) => {
-                stderr_reader.abort();
-                stdout_reader.abort();
-                return AutocompleteOutcome::Failed(
-                    "The autocomplete command status could not be read.".to_owned(),
-                );
-            }
-        },
-    };
-    let stderr = match (&mut stderr_reader).await {
-        Ok(Ok(output)) => output,
-        _ => {
-            stdout_reader.abort();
-            return AutocompleteOutcome::Failed(
-                "The autocomplete command output could not be read.".to_owned(),
-            );
-        }
-    };
-    let stdout = match (&mut stdout_reader).await {
-        Ok(Ok(output)) => output,
-        _ => {
-            return AutocompleteOutcome::Failed(
-                "The autocomplete command output could not be read.".to_owned(),
-            );
-        }
-    };
-    if stderr.exceeded || stdout.exceeded {
-        return AutocompleteOutcome::Failed(
-            "The autocomplete command exceeded the configured output limit.".to_owned(),
-        );
-    }
-    if !status.success() {
+    if !output.status.success() {
         return AutocompleteOutcome::Failed(
             "The configured autocomplete command failed.".to_owned(),
         );
     }
-    let suggestion = String::from_utf8_lossy(&stdout.bytes).trim().to_owned();
+    let suggestion = String::from_utf8_lossy(&output.stdout).trim().to_owned();
     if suggestion.is_empty() {
         return AutocompleteOutcome::Failed(
             "The configured autocomplete command returned no suggestion.".to_owned(),
@@ -498,17 +446,14 @@ async fn run(
     snapshot.status = RunStatus::Running;
     publisher.publish(&snapshot);
 
-    let mut process = Command::new(&command.shell);
-    process
-        .args(["-c", &command.script, "personal-dashboard"])
-        .args(&command.arguments)
-        .current_dir(&command.working_directory)
-        .kill_on_drop(!command.detached)
-        .stdin(Stdio::null())
-        .stderr(Stdio::piped())
-        .stdout(Stdio::piped());
-    #[cfg(unix)]
-    process.process_group(0);
+    let mut process = ShellScript {
+        arguments: command.arguments.clone(),
+        script: command.script.clone(),
+        shell: command.shell.clone(),
+        working_directory: Some(command.working_directory.clone()),
+    }
+    .command();
+    process.kill_on_drop(!command.detached);
     let mut child = match process.spawn() {
         Ok(child) => child,
         Err(error) => {
@@ -833,29 +778,6 @@ fn truncate_at_character_boundary(value: &mut String, maximum_bytes: usize) {
     value.truncate(end);
 }
 
-async fn read_bounded_output(
-    mut reader: impl AsyncRead + Unpin,
-    remaining: Arc<AtomicUsize>,
-) -> Result<BoundedOutput, std::io::Error> {
-    let mut bytes = Vec::new();
-    let mut exceeded = false;
-    let mut buffer = [0_u8; OUTPUT_CHUNK_BYTES];
-    loop {
-        let read = reader.read(&mut buffer).await?;
-        if read == 0 {
-            return Ok(BoundedOutput { bytes, exceeded });
-        }
-        let available = remaining
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |available| {
-                Some(available.saturating_sub(read))
-            })
-            .expect("the remaining output count always updates");
-        let accepted = available.min(read);
-        bytes.extend_from_slice(&buffer[..accepted]);
-        exceeded |= accepted < read;
-    }
-}
-
 async fn read_output(
     mut reader: impl AsyncRead + Unpin,
     sender: mpsc::Sender<String>,
@@ -880,17 +802,6 @@ async fn read_output(
             return;
         }
     }
-}
-
-async fn terminate(child: &mut Child) {
-    #[cfg(unix)]
-    if let Some(process_id) = child.id() {
-        unsafe {
-            libc::kill(-(process_id as i32), libc::SIGKILL);
-        }
-    }
-    let _ = child.kill().await;
-    let _ = child.wait().await;
 }
 
 #[cfg(test)]

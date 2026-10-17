@@ -60,7 +60,7 @@ gh auth status
 
 ## Configuration files
 
-Edit YAML, YML, or JSON feature files in any directory selected on the Options page to change the theme, sections, discovery commands, prompt autocomplete, and pull request or issue buttons.
+Edit YAML, YML, or JSON feature files in any directory selected on the Options page to change the theme, sections, discovery commands, prompt autocomplete, pull request or issue buttons, and chat.
 Optify discovers supported files recursively in every selected directory.
 Keep a root feature small and use it to import focused features that each own one area of configuration.
 Each focused file should normally be imported by one root feature so its ownership and path are obvious.
@@ -132,6 +132,11 @@ Do not introduce a named command registry merely to deduplicate similar strings.
 Keeping a complete command at its point of use makes personal configuration easier to read and change.
 Use `application.working_directories` instead of embedding `cd` in each command.
 This keeps the allowed directories configuration-driven and ensures the preview, command log, and actual process agree about the selected current working directory.
+
+Chat is disabled unless a selected feature defines `chat`, so the repository example does not configure it.
+Keep chat listener, reply, and acknowledgement commands in a personal configuration directory because they act on your chat account.
+Before enabling a listener, run its command in a terminal and confirm that it prints one JSON message per line for only the messages the dashboard should act on.
+See the [chat section of the technical specification](SPEC.md#chat) for the listener protocol and an example.
 
 ## Schema and live reload
 
@@ -206,6 +211,9 @@ If configuration diagnostics do not appear, confirm that the workspace is opened
 
 If a configured program works in a terminal but not in the dashboard, inspect the environment of the process that started the server.
 Launchers and non-interactive processes may not inherit the same `PATH` as a terminal.
+
+If chat does not respond, confirm that a browser tab has applied the Optify setup since the server started, because the listener starts only after a valid setup enables chat.
+Then check the server output for chat listener exits and failed chat commands, which are logged without message text.
 
 If startup rejects the configuration, fix the first schema or template error and rerun `pnpm --dir dashboard run dev`.
 The application does not substitute sample configuration, guessed paths, or missing environment values.

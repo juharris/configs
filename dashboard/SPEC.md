@@ -9,6 +9,7 @@ Each section runs a complete command from the YAML configuration to discover its
 Each pull request or issue receives buttons from two ordered configuration lists: buttons that are always visible and advanced buttons revealed on demand.
 
 Buttons run complete inline command strings or open configured URLs.
+Optional chat runs configured coding-agent turns for messages that a configured listener command prints, with one conversation per chat thread.
 The backend is not coupled to a particular coding agent, model provider, or command-line tool.
 Provider-specific flags, prompts, permissions, and output remain in the command strings where they are easy to find and change.
 
@@ -18,7 +19,7 @@ Rust types define the configuration contract, and a generated local JSON Schema 
 
 ## Design principles
 
-- Keep each complete command next to the section, button, or autocomplete feature that runs it.
+- Keep each complete command next to the section, button, autocomplete, or chat feature that runs it.
 - Keep focused feature files small and give each one a clear importing root feature.
 - Prefer a duplicated readable command over a registry entry that requires jumping elsewhere in the file.
 - Represent commands as strings so long invocations remain easy to copy, paste, and edit.
@@ -40,6 +41,7 @@ Rust types define the configuration contract, and a generated local JSON Schema 
 - Start configured detached commands without retaining ownership after a short startup window.
 - Open a pre-run view of the fully resolved command before executing any command button.
 - Provide low-latency prompt autocomplete through a separately configured local command.
+- Start, queue, steer, and stop coding-agent conversations from a chat client through configured listener, agent, and reply commands.
 - Fail with a precise error when configuration, a command template, an executable, or a required value is invalid.
 - Provide one development command and one release executable that starts the local service and opens the browser UI.
 
@@ -133,10 +135,12 @@ Backend modules are:
 
 - `autocomplete`: debounces, supersedes, and cancels configured autocomplete commands.
 - `buttons`: resolves button configuration and presentation metadata for an item.
+- `chat`: supervises the configured chat listener, routes chat commands, and runs one agent turn at a time per conversation.
 - `commands`: compiles Bash templates, resolves command invocations, and formats display previews.
 - `config`: owns the active Optify `OptionsWatcher`, applies Optify setup changes, and publishes immutable validated configuration snapshots.
 - `connections`: owns per-tab sessions, bounded queues, and targeted or broadcast delivery.
 - `errors`: defines stable error codes and safe user-facing context.
+- `execution`: runs Bash scripts in their own process groups with bounded output, timeouts, cancellation, and graceful interruption.
 - `items`: runs section discovery and validates normalized GitHub items.
 - `messages`: defines generated request, response, event, and UI-request types.
 - `processes`: owns process lifecycle, output limits, cancellation, and timeouts.
@@ -307,6 +311,7 @@ The keys inside `options` are:
 | `application` | object | Defines concurrency, output, refresh, and timeout limits |
 | `autocomplete` | object | Defines the one inline command used for prompt suggestions |
 | `buttons` | object | Defines `always` and `advanced` lists for issues and pull requests |
+| `chat` | optional object | Defines chat commands, models, and the listener, agent, and reply commands |
 | `sections` | ordered list | Defines each item section, complete discovery command, cache TTL, and page size |
 
 Fixed-shape objects reject unknown fields.
@@ -537,10 +542,16 @@ Resolving a placeholder therefore never changes Bash structure.
 Initial placeholders are:
 
 - `{autocomplete.request}` for the complete generated autocomplete request.
+- `{conversation.id}` for the ID of the chat message that started a conversation, which also identifies its thread.
+- `{conversation.model}` for the model selected for a chat turn.
+- `{conversation.session_id}` for the dashboard-generated UUID that an agent command can use to start and resume one session.
 - `{item.number}` for the positive issue or pull request number.
 - `{item.repository}` for the normalized `owner/name`.
 - `{item.url}` for the validated HTTPS item URL.
+- `{message.id}` for the ID of the chat message being acknowledged.
+- `{message.text}` for the chat messages that one agent turn delivers.
 - `{prompt}` for the optional text entered for the selected button.
+- `{reply.text}` for the prefixed text that the chat reply command posts.
 
 Each placeholder is valid only where its context exists.
 Unknown placeholders, malformed braces, unavailable context, and empty command templates are errors.
@@ -616,6 +627,9 @@ The runner:
 - Starts each command in a process group so cancellation terminates its descendants.
 - Records whether a run completed, failed, timed out, or was cancelled.
 - Marks a configured detached command **Started** after its short startup window, then stops tracking or controlling it.
+
+Section discovery, autocomplete, and chat commands use the shared `execution` module for process groups, bounded output, timeouts, and cancellation.
+Every command receives `personal-dashboard` as `$0` and its placeholder values as `$1` onward.
 
 Command output is generic text in the first release.
 The backend does not parse one coding agent's event stream, capture provider session IDs, or infer provider state.
@@ -719,6 +733,140 @@ Generated autocomplete requests and suggestions are excluded from logs.
 Button prompt text appears in the fully resolved command recorded for a run because that command must be available for manual recovery.
 Run history remains bounded, transient in-memory state and is never written to disk by the dashboard.
 
+## Chat
+
+Chat is optional and is enabled by the `chat` object.
+It lets a person start and continue coding-agent conversations from a chat client, such as a private conversation with themselves.
+The dashboard contains no chat-provider client.
+The configured listener, reply, and acknowledgement commands own every chat-provider detail, and the configured agent commands own every agent detail.
+
+```yaml
+options:
+  chat:
+    acknowledgement: chat-tool react {message.id} eyes
+    agent:
+      resume: >-
+        printf '%s' {message.text}
+        | claude --print --resume {conversation.session_id} --model {conversation.model}
+      start: >-
+        printf '%s' {message.text}
+        | claude --print --session-id {conversation.session_id} --model {conversation.model}
+      timeout_seconds: 7200
+    commands:
+      help: { name: /help, description: Show these commands. }
+      model: { name: /model, description: Show or set the model. }
+      start: { name: /ai, description: Start a conversation. }
+      status: { name: /status, description: Show what is running. }
+      steer: { name: /steer, description: Interrupt the turn and steer it. }
+      stop: { name: /stop, description: Stop the turn and clear the queue. }
+    listener:
+      command: chat-tool listen
+      restart_seconds: 60
+    models:
+      available: [haiku, opus, sonnet]
+      default: opus
+    reply:
+      command: chat-tool reply {conversation.id} {reply.text}
+      prefix: ':robot_face: '
+    working_directory: /Users/me/src
+```
+
+`chat-tool` stands for a personal script outside this repository.
+
+### Listener protocol
+
+The listener is a long-running command that prints one JSON object per line for each message the dashboard may act on:
+
+```json
+{"id": "https://example.slack.com/archives/D123/p1700000000000100", "text": "/ai fix the flaky test", "thread": null}
+```
+
+- `id` identifies the message and must not be blank.
+- `text` is the complete message text.
+- `thread` is the ID of the message that started the thread being replied to, or `null` for a message outside a thread.
+
+Lines with invalid JSON, unknown fields, blank IDs, or more than `application.max_output_bytes_per_run` bytes are skipped and logged without their content.
+The listener's standard error is discarded because diagnostics can contain credentials.
+
+The listener starts when a validated configuration enables chat.
+When it exits, the dashboard stops its process group, waits `listener.restart_seconds`, and starts it again.
+A configuration reload restarts it only when its resolved command, shell, working directory, output limit, or restart delay changes.
+
+Anyone whose messages the listener prints can run the configured agent commands.
+The listener is therefore responsible for printing only messages from trusted senders in trusted conversations.
+
+### Commands and routing
+
+Message text is trimmed before parsing.
+A leading space therefore lets a person send a command that their chat client would otherwise intercept.
+The first word selects a configured command only when it exactly matches that command's `name`.
+Any other message, including an agent command such as a skill, is passed to the agent unchanged.
+Messages that start with `chat.reply.prefix` are ignored so the dashboard does not respond to its own replies when the listener prints them.
+
+A `start` message outside a thread starts a conversation whose ID is that message's ID.
+Every later message whose `thread` is that ID belongs to the conversation, so a reply command can use `{conversation.id}` to post in the thread.
+
+| Key | In a conversation thread | Outside a thread |
+| --- | --- | --- |
+| `help` | Lists the configured commands | Lists the configured commands |
+| `model` | Shows or sets the model for the conversation's next turn | Shows or sets the model for new conversations |
+| `start` | Queues its text | Starts a conversation with its text |
+| `status` | Shows the conversation's state, model, and queued message count | Lists running conversations and counts idle ones |
+| `steer` | Interrupts the running turn and delivers its text first in the next turn | Explains that steering requires a conversation thread |
+| `stop` | Interrupts the running turn and clears the conversation's queue | Interrupts every running turn and clears every queue |
+
+Plain messages in a conversation thread are queued.
+Plain messages outside a thread, and plain messages in a thread that no conversation uses, are ignored.
+A `start` message in such a thread starts a conversation for that thread, while other commands reply that no conversation uses it.
+`model` accepts only names listed in `chat.models.available`.
+
+The optional `acknowledgement` command runs after a message is queued or accepted for steering, for example to add a reaction.
+Replies and acknowledgements run one at a time in the order they were produced, each limited by `application.command_timeout_seconds`.
+
+### Turns
+
+Each conversation runs at most one agent turn at a time.
+A turn delivers all steering messages followed by all queued messages, separated by blank lines, through `{message.text}`.
+Messages that arrive during a turn wait for the next turn.
+
+Steering does not insert text into a running agent process.
+It sends `SIGINT` to the running turn's process group, waits up to ten seconds for the configured shell to exit, kills the remaining group, and starts the next turn in the same session.
+`stop` interrupts the same way without starting another turn.
+
+The dashboard generates a UUID for each conversation's session and provides it as `{conversation.session_id}`.
+The first turn runs `agent.start`.
+After a turn completes or is interrupted, later turns run `agent.resume` with the same session ID.
+When no turn has completed or been interrupted, the next turn runs `agent.start` with a new session ID because the failed command may already have reserved the previous ID.
+The dashboard does not read provider session IDs, parse agent output, or infer agent state.
+
+A successful turn replies with its trimmed standard output, or with a note that it finished without output.
+A non-zero exit replies with its status and bounded, control-character-filtered standard error.
+A timeout, output-limit failure, or startup failure replies with a safe message.
+An interrupted turn does not reply.
+`agent.timeout_seconds` limits each turn, and `application.max_output_bytes_per_run` limits its captured output.
+Chat turns do not count toward `application.max_concurrent_commands`.
+
+Every chat command runs in `chat.working_directory`, which must be one of `application.working_directories`.
+
+### Chat validation
+
+- `agent.timeout_seconds` and `listener.restart_seconds` must be positive.
+- Each command `name` must be one unique word without whitespace, and each `description` must not be blank.
+- `models.available` must list at least one unique single-word model and include `models.default`.
+- `reply.prefix` must not be blank.
+- `listener.command` accepts no placeholders.
+- `agent.start` and `agent.resume` accept `{conversation.id}`, `{conversation.model}`, `{conversation.session_id}`, and `{message.text}`, and must use `{message.text}`.
+- `reply.command` must use `{conversation.id}` and `{reply.text}`, and accepts no other placeholder.
+- `acknowledgement` accepts `{conversation.id}` and must use `{message.id}`.
+
+### Chat state
+
+Conversations, queues, and model selections are in memory and last only as long as the service.
+Disabling chat forgets them and interrupts every running turn.
+After a service restart, messages in an earlier conversation's thread are not routed to that conversation.
+A `start` message in that thread begins a new agent session without the earlier conversation's context.
+Because each browser tab supplies the Optify setup, the listener starts only after a browser has applied a valid setup since the service started.
+
 ## User interface
 
 The first release has an Options page at `/options`, a command-log page at `/logs`, one dashboard page, and a run drawer.
@@ -786,6 +934,8 @@ A browser-accessible service that launches local processes must:
 - Never store or log bootstrap tokens, credentials, full environments, or credential files.
 - Never persist run history, including resolved commands and configured prompt text, to disk.
 - Never infer a secret or environment-variable fallback.
+- Act only on chat messages printed by the configured listener and post only through the configured reply and acknowledgement commands.
+- Discard chat listener standard error and never log chat message, reply, or agent output text.
 
 The WebSocket bootstrap token prevents another local web page from silently driving the service.
 It does not make an unsafe YAML command safe.
@@ -793,12 +943,12 @@ The local configuration author remains responsible for the commands intentionall
 
 ## Runtime state and observability
 
-The first release keeps discovered items, replay buffers, and active-run state in memory.
+The first release keeps discovered items, replay buffers, active-run state, and chat conversations in memory.
 Durable history and a local database are deferred until a concrete retention requirement exists.
 
 Rotating structured logs are written to the platform application-data directory rather than the repository.
-Logs include operation IDs, section IDs, button positions, durations, exit status, and sanitized error categories.
-They exclude command prompts, item bodies, autocomplete text, environment values, and raw credential-bearing output.
+Logs include operation IDs, section IDs, button positions, chat turn IDs, durations, exit status, and sanitized error categories.
+They exclude command prompts, item bodies, autocomplete text, chat messages and replies, environment values, and raw credential-bearing output.
 
 ## Development and quality gates
 
@@ -835,6 +985,9 @@ Tests must cover:
 - Loopback binding, host and origin checks, bootstrap authentication, and response headers.
 - Message routing, request correlation, event ordering, reconnect resynchronization, and queue bounds.
 - Autocomplete debounce, supersession, cancellation, stale-response rejection, and bounded text output.
+- Chat listener line validation, command routing, queueing, steering interruption, stopping, model selection, session start and resume, and ordered replies.
+- Shared process-group execution, bounded output, timeouts, cancellation, and the interruption grace period.
+- Chat configuration validation for working directories, command names, models, reply prefixes, and required placeholders.
 - UI loading, stale, empty, error, disconnected, prompt, streaming, cancellation, and button-title states.
 
 Tests use fake executables and temporary directories.
@@ -849,6 +1002,7 @@ Fixtures and helpers should cover meaningful behavior without cloning nearly ide
 4. Implement Bash template compilation, discovery sections, item normalization, and the dashboard UI.
 5. Implement generic process streaming, prompts, button execution, command previews, and cancellation.
 6. Implement configured autocomplete and accessibility and security smoke coverage.
+7. Implement configured chat conversations.
 
 ## Acceptance criteria
 
@@ -880,4 +1034,5 @@ Fixtures and helpers should cover meaningful behavior without cloning nearly ide
 - Any compatible non-interactive local command works without provider-specific Rust or TypeScript changes.
 - Prompt autocomplete runs the configured command, cancels superseded work, and ignores stale results.
 - Command output streams live and can be cancelled without a provider-specific output parser.
+- A configured chat listener can start a conversation and queue, steer, and stop its turns without provider-specific Rust code.
 - No credential or secret is stored in the YAML file or returned to the frontend.

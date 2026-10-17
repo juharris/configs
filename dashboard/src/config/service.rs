@@ -363,6 +363,7 @@ mod tests {
     use super::{ConfigService, ConfigServiceError};
     use crate::config::RuntimeSchema;
     use crate::messages::{OptifySetup, Theme};
+    use crate::test_support::workspace_tempdir;
 
     #[test]
     fn applies_ordered_directories_and_features_idempotently_and_atomically() {
@@ -549,9 +550,5 @@ mod tests {
 
     fn base_configuration() -> &'static str {
         "options:\n  appearance:\n    theme: system\n  application:\n    command_timeout_seconds: 30\n    default_refresh_seconds: 60\n    max_concurrent_commands: 2\n    max_output_bytes_per_run: 4096\n    shell: /bin/bash\n    working_directories:\n      - /tmp\n  autocomplete:\n    command: printf '%s' '{autocomplete.request}'\n    debounce_milliseconds: 100\n    instruction: Suggest a useful edit.\n    minimum_characters: 2\n  buttons:\n    issues:\n      advanced: []\n      always: []\n    pull_requests:\n      advanced: []\n      always: []\n  sections:\n    - cache_ttl_seconds: 300\n      command: printf '[]'\n      id: base_items\n      item_kind: issue\n      items_per_page: 6\n      title: Items\n"
-    }
-
-    fn workspace_tempdir() -> TempDir {
-        tempfile::tempdir_in(Path::new(env!("CARGO_MANIFEST_DIR")).join("target")).unwrap()
     }
 }

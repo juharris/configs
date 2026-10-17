@@ -55,6 +55,98 @@ pub struct ButtonsConfig {
     pub pull_requests: ButtonListsConfig,
 }
 
+/// Defines the commands that run one turn of a chat conversation.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChatAgentConfig {
+    /// Runs every later turn of a conversation and receives that turn's message text.
+    pub resume: String,
+    /// Runs the first turn of a conversation and receives that turn's message text.
+    pub start: String,
+    /// Limits how long one turn may run before it is interrupted.
+    pub timeout_seconds: u64,
+}
+
+/// Names one chat command and describes it in the help reply.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChatCommandConfig {
+    pub description: String,
+    /// Is the first word of a message that runs this command, such as `/ai`.
+    pub name: String,
+}
+
+/// Names the commands that control chat conversations.
+///
+/// A message that does not start with one of these names is queued for the conversation's next turn.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChatCommandsConfig {
+    pub help: ChatCommandConfig,
+    pub model: ChatCommandConfig,
+    pub start: ChatCommandConfig,
+    pub status: ChatCommandConfig,
+    pub steer: ChatCommandConfig,
+    pub stop: ChatCommandConfig,
+}
+
+impl ChatCommandsConfig {
+    /// Lists every command with its configuration key in alphabetical order.
+    pub fn entries(&self) -> [(&'static str, &ChatCommandConfig); 6] {
+        [
+            ("help", &self.help),
+            ("model", &self.model),
+            ("start", &self.start),
+            ("status", &self.status),
+            ("steer", &self.steer),
+            ("stop", &self.stop),
+        ]
+    }
+}
+
+/// Connects coding-agent conversations to an external chat through configured commands.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChatConfig {
+    /// Runs after the dashboard accepts a message, for example to add a reaction.
+    pub acknowledgement: Option<String>,
+    pub agent: ChatAgentConfig,
+    pub commands: ChatCommandsConfig,
+    pub listener: ChatListenerConfig,
+    pub models: ChatModelsConfig,
+    pub reply: ChatReplyConfig,
+    /// Is the current working directory for every chat command and must be one of `application.working_directories`.
+    pub working_directory: String,
+}
+
+/// Defines the long-running command that prints incoming chat messages.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChatListenerConfig {
+    /// Prints one JSON object per line with `id`, `text`, and `thread` fields.
+    pub command: String,
+    /// Is the delay before the dashboard restarts a listener that exited.
+    pub restart_seconds: u64,
+}
+
+/// Lists the models that chat conversations can select.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChatModelsConfig {
+    pub available: Vec<String>,
+    /// Is the model for new conversations and must be one of `available`.
+    pub default: String,
+}
+
+/// Defines how the dashboard posts replies into a conversation.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChatReplyConfig {
+    pub command: String,
+    /// Starts every reply so the dashboard can ignore its own replies when the listener prints them.
+    pub prefix: String,
+}
+
 /// Describes the dashboard-specific portion of an Optify feature file.
 ///
 /// The standard Optify envelope is composed into the generated schema.
@@ -78,6 +170,7 @@ pub struct PartialRootConfig {
     pub application: Option<ApplicationConfig>,
     pub autocomplete: Option<AutocompleteConfig>,
     pub buttons: Option<ButtonsConfig>,
+    pub chat: Option<ChatConfig>,
     pub sections: Option<Vec<SectionConfig>>,
 }
 
@@ -96,6 +189,7 @@ pub struct RootConfig {
     pub application: ApplicationConfig,
     pub autocomplete: AutocompleteConfig,
     pub buttons: ButtonsConfig,
+    pub chat: Option<ChatConfig>,
     pub sections: Vec<SectionConfig>,
 }
 

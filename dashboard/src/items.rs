@@ -1,25 +1,22 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::Stdio;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::{Map, Value};
 use thiserror::Error;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
-use tokio::io::{AsyncRead, AsyncReadExt};
-use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
 use url::Url;
 
 use crate::commands::CommandTemplate;
 use crate::config::ItemKind;
+use crate::execution::{
+    CaptureLimits, ExecutionError, ShellScript, Termination, capture, exit_status_code,
+    stderr_detail,
+};
 use crate::messages::{ChecksStatus, DashboardActor, DashboardItem, DashboardLabel, MergeStatus};
-
-const MAX_ERROR_DETAIL_CHARACTERS: usize = 2_000;
-const OUTPUT_CHUNK_BYTES: usize = 8 * 1024;
 
 #[derive(Clone, Debug)]
 pub struct DiscoveryRequest {
@@ -122,6 +119,8 @@ fn timestamp_milliseconds() -> u64 {
 
 #[derive(Debug, Error)]
 pub enum DiscoveryError {
+    #[error("discovery command failed: {0}")]
+    Execution(#[from] ExecutionError),
     #[error("discovery command returned invalid items: {0}")]
     InvalidItems(#[from] ItemValidationError),
     #[error("discovery command exited with status {status}")]
@@ -129,30 +128,27 @@ pub enum DiscoveryError {
         detail: Option<String>,
         status: String,
     },
-    #[error("discovery command exceeded the configured output limit")]
-    OutputLimit,
-    #[error("could not read discovery command output: {0}")]
-    OutputRead(#[source] std::io::Error),
-    #[error("could not start the configured discovery command: {0}")]
-    Start(#[source] std::io::Error),
-    #[error("discovery command timed out")]
-    Timeout,
 }
 
 impl DiscoveryError {
     pub fn safe_message(&self) -> String {
         match self {
+            Self::Execution(error) => match error {
+                ExecutionError::Cancelled => "The section command was cancelled.",
+                ExecutionError::OutputLimit => {
+                    "The section command exceeded the configured output limit."
+                }
+                ExecutionError::OutputRead(_) => "The section command output could not be read.",
+                ExecutionError::Start(_) => "The section command could not be started.",
+                ExecutionError::Status(_) => "The section command status could not be read.",
+                ExecutionError::Timeout => "The section command timed out.",
+            }
+            .to_owned(),
             Self::InvalidItems(error) => error.to_string(),
             Self::NonZeroExit { detail, status } => detail.as_ref().map_or_else(
                 || format!("The section command exited with status {status}."),
                 |detail| format!("The section command exited with status {status}.\n{detail}"),
             ),
-            Self::OutputLimit => {
-                "The section command exceeded the configured output limit.".to_owned()
-            }
-            Self::OutputRead(_) => "The section command output could not be read.".to_owned(),
-            Self::Start(_) => "The section command could not be started.".to_owned(),
-            Self::Timeout => "The section command timed out.".to_owned(),
         }
     }
 }
@@ -164,91 +160,31 @@ pub struct ItemValidationError {
     message: String,
 }
 
-struct BoundedOutput {
-    bytes: Vec<u8>,
-    exceeded: bool,
-}
-
 async fn execute(request: &DiscoveryRequest) -> Result<Vec<u8>, DiscoveryError> {
-    let mut command = Command::new(&request.shell);
-    command
-        .args(["-c", request.command.script()])
-        .kill_on_drop(true)
-        .stdin(Stdio::null())
-        .stderr(Stdio::piped())
-        .stdout(Stdio::piped());
-    #[cfg(unix)]
-    command.process_group(0);
-
-    let mut child = command.spawn().map_err(DiscoveryError::Start)?;
-    let stderr = child
-        .stderr
-        .take()
-        .expect("piped discovery stderr is available");
-    let stdout = child
-        .stdout
-        .take()
-        .expect("piped discovery stdout is available");
-    let remaining = Arc::new(AtomicUsize::new(request.max_output_bytes));
-    let mut stderr_reader = tokio::spawn(read_bounded(stderr, remaining.clone()));
-    let mut stdout_reader = tokio::spawn(read_bounded(stdout, remaining));
-
-    let completed = async {
-        let status = child.wait().await.map_err(DiscoveryError::Start)?;
-        let stderr = (&mut stderr_reader)
-            .await
-            .map_err(|error| DiscoveryError::OutputRead(std::io::Error::other(error)))?
-            .map_err(DiscoveryError::OutputRead)?;
-        let stdout = (&mut stdout_reader)
-            .await
-            .map_err(|error| DiscoveryError::OutputRead(std::io::Error::other(error)))?
-            .map_err(DiscoveryError::OutputRead)?;
-        Ok::<_, DiscoveryError>((status, stderr, stdout))
+    let script = ShellScript {
+        arguments: Vec::new(),
+        script: request.command.script().to_owned(),
+        shell: request.shell.clone(),
+        working_directory: None,
     };
-    let (status, stderr, stdout) = match tokio::time::timeout(request.timeout, completed).await {
-        Ok(completed) => completed?,
-        Err(_) => {
-            terminate(&mut child).await;
-            stderr_reader.abort();
-            stdout_reader.abort();
-            return Err(DiscoveryError::Timeout);
-        }
+    let limits = CaptureLimits {
+        max_output_bytes: request.max_output_bytes,
+        timeout: request.timeout,
     };
-
-    if stderr.exceeded || stdout.exceeded {
-        return Err(DiscoveryError::OutputLimit);
-    }
-    if !status.success() {
+    let output = capture(
+        &script,
+        limits,
+        Termination::Kill,
+        std::future::pending::<()>(),
+    )
+    .await?;
+    if !output.status.success() {
         return Err(DiscoveryError::NonZeroExit {
-            detail: bounded_stderr_detail(&stderr.bytes),
-            status: status
-                .code()
-                .map_or_else(|| "unknown".to_owned(), |code| code.to_string()),
+            detail: stderr_detail(&output.stderr),
+            status: exit_status_code(output.status),
         });
     }
-    Ok(stdout.bytes)
-}
-
-fn bounded_stderr_detail(stderr: &[u8]) -> Option<String> {
-    let sanitized = String::from_utf8_lossy(stderr)
-        .chars()
-        .filter(|character| !character.is_control() || matches!(character, '\n' | '\t'))
-        .collect::<String>();
-    let sanitized = sanitized.trim();
-    if sanitized.is_empty() {
-        return None;
-    }
-
-    let character_count = sanitized.chars().count();
-    if character_count <= MAX_ERROR_DETAIL_CHARACTERS {
-        return Some(sanitized.to_owned());
-    }
-
-    let retained = sanitized
-        .chars()
-        .skip(character_count - MAX_ERROR_DETAIL_CHARACTERS)
-        .collect::<String>();
-    Some(format!("…\n{}", retained.trim_start()))
+    Ok(output.stdout)
 }
 
 fn dashboard_actors(
@@ -475,25 +411,6 @@ fn nonblank<'a>(value: &'a str, item: usize, field: &str) -> Result<&'a str, Ite
     Ok(value)
 }
 
-async fn read_bounded(
-    mut reader: impl AsyncRead + Unpin,
-    remaining: Arc<AtomicUsize>,
-) -> Result<BoundedOutput, std::io::Error> {
-    let mut bytes = Vec::new();
-    let mut buffer = [0_u8; OUTPUT_CHUNK_BYTES];
-    let mut exceeded = false;
-    loop {
-        let read = reader.read(&mut buffer).await?;
-        if read == 0 {
-            break;
-        }
-        let reserved = reserve_bytes(&remaining, read);
-        bytes.extend_from_slice(&buffer[..reserved]);
-        exceeded |= reserved < read;
-    }
-    Ok(BoundedOutput { bytes, exceeded })
-}
-
 fn repository(value: &Value, item: usize) -> Result<&str, ItemValidationError> {
     let repository = match value {
         Value::String(repository) => repository.as_str(),
@@ -540,34 +457,6 @@ fn validate_https_url(value: &str, item: usize, field: &str) -> Result<(), ItemV
     Ok(())
 }
 
-fn reserve_bytes(remaining: &AtomicUsize, requested: usize) -> usize {
-    let mut available = remaining.load(Ordering::Acquire);
-    loop {
-        let reserved = available.min(requested);
-        match remaining.compare_exchange_weak(
-            available,
-            available - reserved,
-            Ordering::AcqRel,
-            Ordering::Acquire,
-        ) {
-            Ok(_) => return reserved,
-            Err(current) => available = current,
-        }
-    }
-}
-
-async fn terminate(child: &mut Child) {
-    #[cfg(unix)]
-    if let Some(process_id) = child.id() {
-        // Bash pipelines can outlive the shell unless the complete process group is terminated.
-        unsafe {
-            libc::kill(-(process_id as i32), libc::SIGKILL);
-        }
-    }
-    let _ = child.kill().await;
-    let _ = child.wait().await;
-}
-
 fn actor_login(value: &Value, item: usize) -> Result<Option<&str>, ItemValidationError> {
     match value {
         Value::Null => Ok(None),
@@ -584,35 +473,13 @@ mod tests {
     use std::path::Path;
     use std::time::Duration;
 
-    use tempfile::TempDir;
-
-    use super::{
-        DiscoveryRequest, ItemDiscoverer, MAX_ERROR_DETAIL_CHARACTERS, bounded_stderr_detail,
-        normalize_items,
-    };
+    use super::{DiscoveryRequest, ItemDiscoverer, normalize_items};
     use crate::commands::CommandTemplate;
     use crate::config::ItemKind;
     use crate::messages::{ChecksStatus, MergeStatus};
+    use crate::test_support::{make_executable, workspace_tempdir};
 
     const PULL_REQUESTS: &[u8] = include_bytes!("fixtures/search-pull-requests.json");
-
-    #[test]
-    fn bounds_and_filters_stderr_details() {
-        let stderr = format!(
-            "discarded\0{}\u{7}",
-            "x".repeat(MAX_ERROR_DETAIL_CHARACTERS + 1)
-        );
-
-        let detail = bounded_stderr_detail(stderr.as_bytes()).unwrap();
-
-        assert!(detail.starts_with("…\n"));
-        assert_eq!(detail.chars().count(), MAX_ERROR_DETAIL_CHARACTERS + 2);
-        assert!(
-            detail
-                .chars()
-                .all(|character| { !character.is_control() || matches!(character, '\n' | '\t') })
-        );
-    }
 
     #[tokio::test]
     async fn caches_successful_discoveries_by_command_until_the_ttl_expires() {
@@ -709,23 +576,5 @@ mod tests {
             error.to_string(),
             "The section command returned invalid item 1: isDraft is required."
         );
-    }
-
-    #[cfg(unix)]
-    fn make_executable(path: &Path) {
-        use std::os::unix::fs::PermissionsExt;
-
-        let mut permissions = fs::metadata(path).unwrap().permissions();
-        permissions.set_mode(0o700);
-        fs::set_permissions(path, permissions).unwrap();
-    }
-
-    #[cfg(not(unix))]
-    fn make_executable(_path: &Path) {
-        panic!("Personal Dashboard requires Bash and a Unix process model");
-    }
-
-    fn workspace_tempdir() -> TempDir {
-        tempfile::tempdir_in(Path::new(env!("CARGO_MANIFEST_DIR")).join("target")).unwrap()
     }
 }
