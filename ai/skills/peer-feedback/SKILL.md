@@ -8,6 +8,10 @@ argument-hint: "[person's name]"
 
 Draft peer feedback for **$0** by gathering evidence of interactions and producing thoughtful, specific responses.
 
+Before gathering evidence, load the applicable installed organization or provider companion skill for this workflow, such as `<organization>-peer-feedback`.
+Apply its provider discovery, commands, and links to the resources it covers; GitHub examples below apply only to GitHub resources.
+If a companion already loaded this skill, continue the combined workflow without reloading either skill or repeating completed steps.
+
 ## Overview
 
 Peer feedback forms typically include:

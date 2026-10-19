@@ -6,6 +6,11 @@ allowed-tools: Bash(date *), Bash(sleep *)
 
 Check for unanswered messages from Geekbot in the DM channel and answer them.
 
+Before gathering work data, load the applicable installed organization or provider companion skill for this workflow, such as `<organization>-daily-report`.
+Apply its provider discovery, commands, and links to the resources it covers; GitHub examples below apply only to GitHub resources.
+Keep this skill's conversation handling and output requirements.
+If a companion already loaded this skill, continue the combined workflow without reloading either skill or repeating completed steps.
+
 ## Step 1: Read the conversation and gather work data in parallel
 
 Do these in parallel:
