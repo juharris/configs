@@ -8,6 +8,11 @@ argument-hint: "[pr-number]"
 
 Review PR #$0 following the guidelines in @~/workspace/configs/ai/code-review-guidelines.md and @~/workspace/configs/ai/AGENTS.md
 
+Before fetching or reviewing a pull request, load the applicable installed organization or provider companion skill for this workflow, such as `<organization>-review-pr`.
+Apply its provider discovery, commands, and links to the resources it covers; GitHub examples below apply only to GitHub resources.
+Keep this skill's review criteria and pending-feedback policy.
+If a companion already loaded this skill, continue the combined workflow without reloading either skill or repeating completed steps.
+
 Read those files first, then:
 
 1. Fetch PR info with `gh pr view $0` and `gh pr diff $0`

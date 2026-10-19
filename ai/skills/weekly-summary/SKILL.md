@@ -6,6 +6,11 @@ allowed-tools: Bash(date *)
 
 # Weekly Work Summary
 
+Before gathering work data, load the applicable installed organization or provider companion skill for this workflow, such as `<organization>-weekly-summary`.
+Apply its provider discovery, commands, and links to the resources it covers; GitHub examples below apply only to GitHub resources.
+Keep this skill's period, discretion, and output requirements.
+If a companion already loaded this skill, continue the combined workflow without reloading either skill or repeating completed steps.
+
 Summarize all work done in the last week by gathering information from pull requests authored by the current user.
 Emphasize why the pull requests are important to the company and why the director, vice presidents, CTO, and CEO at the company should care about the work that was done.
 Focus on the impact of the work and how it contributes to the company's goals and success.
