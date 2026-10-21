@@ -8,7 +8,6 @@ use std::time::Duration;
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::{Child, Command};
-use tokio::task::JoinHandle;
 
 /// Gives an interrupted coding agent time to end its turn and save its session before the process group is killed.
 const INTERRUPT_GRACE_PERIOD: Duration = Duration::from_secs(10);
@@ -71,11 +70,6 @@ impl ProcessGroupGuard {
             process_id: child.id(),
         }
     }
-
-    /// Leaves the process group alone, for example after its shell exits and its background work should continue.
-    pub fn disarm(&mut self) {
-        self.process_id = None;
-    }
 }
 
 impl Drop for ProcessGroupGuard {
@@ -136,8 +130,19 @@ pub async fn capture(
     termination: Termination,
     cancellation: impl Future,
 ) -> Result<CapturedOutput, ExecutionError> {
+    capture_with_stdout(script, limits, termination, cancellation, |_| {}).await
+}
+
+/// Captures bounded output while delivering accepted stdout bytes as they arrive.
+pub async fn capture_with_stdout(
+    script: &ShellScript,
+    limits: CaptureLimits,
+    termination: Termination,
+    cancellation: impl Future,
+    stdout_received: impl FnMut(&[u8]),
+) -> Result<CapturedOutput, ExecutionError> {
     let mut child = script.command().spawn().map_err(ExecutionError::Start)?;
-    let mut process_group = ProcessGroupGuard::new(&child);
+    let _process_group = ProcessGroupGuard::new(&child);
     let stderr = child
         .stderr
         .take()
@@ -147,16 +152,23 @@ pub async fn capture(
         .take()
         .expect("piped command stdout is available");
     let remaining = Arc::new(AtomicUsize::new(limits.max_output_bytes));
-    let mut stderr_reader = tokio::spawn(read_bounded(stderr, remaining.clone()));
-    let mut stdout_reader = tokio::spawn(read_bounded(stdout, remaining));
 
     let stopped = {
         // Output is read inside the deadline because a background process can keep a pipe open after the shell exits.
         let completed = async {
-            let status = child.wait().await.map_err(ExecutionError::Status)?;
-            let stderr = join_reader(&mut stderr_reader).await?;
-            let stdout = join_reader(&mut stdout_reader).await?;
-            Ok::<_, ExecutionError>((status, stderr, stdout))
+            tokio::try_join!(
+                async { child.wait().await.map_err(ExecutionError::Status) },
+                async {
+                    read_bounded(stderr, remaining.clone(), |_| {})
+                        .await
+                        .map_err(ExecutionError::OutputRead)
+                },
+                async {
+                    read_bounded(stdout, remaining.clone(), stdout_received)
+                        .await
+                        .map_err(ExecutionError::OutputRead)
+                },
+            )
         };
         tokio::select! {
             completed = completed => Ok(completed),
@@ -171,13 +183,9 @@ pub async fn capture(
                 Termination::Interrupt => interrupt(&mut child).await,
                 Termination::Kill => terminate(&mut child).await,
             }
-            process_group.disarm();
-            stderr_reader.abort();
-            stdout_reader.abort();
             return Err(error);
         }
     };
-    process_group.disarm();
 
     if stderr.exceeded || stdout.exceeded {
         return Err(ExecutionError::OutputLimit);
@@ -212,6 +220,7 @@ pub async fn interrupt(child: &mut Child) {
 async fn read_bounded(
     mut reader: impl AsyncRead + Unpin,
     remaining: Arc<AtomicUsize>,
+    mut received: impl FnMut(&[u8]),
 ) -> Result<BoundedOutput, std::io::Error> {
     let mut bytes = Vec::new();
     let mut exceeded = false;
@@ -227,6 +236,9 @@ async fn read_bounded(
             })
             .expect("the remaining output count always updates");
         let accepted = available.min(read);
+        if accepted > 0 {
+            received(&buffer[..accepted]);
+        }
         bytes.extend_from_slice(&buffer[..accepted]);
         exceeded |= accepted < read;
     }
@@ -266,15 +278,6 @@ pub async fn terminate(child: &mut Child) {
     let _ = child.wait().await;
 }
 
-async fn join_reader(
-    reader: &mut JoinHandle<Result<BoundedOutput, std::io::Error>>,
-) -> Result<BoundedOutput, ExecutionError> {
-    reader
-        .await
-        .map_err(|error| ExecutionError::OutputRead(std::io::Error::other(error)))?
-        .map_err(ExecutionError::OutputRead)
-}
-
 #[cfg(unix)]
 fn signal_process_group(process_id: u32, signal: libc::c_int) {
     // A negative process ID addresses the process group that `process_group(0)` created for the shell.
@@ -292,7 +295,7 @@ mod tests {
 
     use super::{
         CaptureLimits, ExecutionError, MAX_ERROR_DETAIL_CHARACTERS, ShellScript, Termination,
-        capture, stderr_detail,
+        capture, capture_with_stdout, stderr_detail,
     };
     use crate::test_support::workspace_tempdir;
 
@@ -369,25 +372,65 @@ mod tests {
 
     #[tokio::test]
     async fn kills_a_command_that_exceeds_its_timeout() {
+        for command in [
+            "sleep 30",
+            "sleep 30 & exit 0",
+            "exec >/dev/null 2>&1; sleep 30",
+        ] {
+            let script = ShellScript {
+                arguments: Vec::new(),
+                script: command.to_owned(),
+                shell: PathBuf::from("/bin/bash"),
+                working_directory: None,
+            };
+
+            let result = capture(
+                &script,
+                CaptureLimits {
+                    max_output_bytes: 1024,
+                    timeout: Duration::from_millis(100),
+                },
+                Termination::Kill,
+                std::future::pending::<()>(),
+            )
+            .await;
+
+            assert_matches!(result, Err(ExecutionError::Timeout));
+        }
+    }
+
+    #[tokio::test]
+    async fn streams_bounded_stdout_before_completion_and_stops_on_observed_failure() {
         let script = ShellScript {
             arguments: Vec::new(),
-            script: "sleep 30".to_owned(),
+            script: "printf '123456789'; sleep 30".to_owned(),
             shell: PathBuf::from("/bin/bash"),
             working_directory: None,
         };
-
-        let result = capture(
+        let (cancel, cancelled) = tokio::sync::oneshot::channel();
+        let mut cancel = Some(cancel);
+        let mut received = Vec::new();
+        let started = Instant::now();
+        let result = capture_with_stdout(
             &script,
             CaptureLimits {
-                max_output_bytes: 1024,
-                timeout: Duration::from_millis(100),
+                max_output_bytes: 5,
+                timeout: Duration::from_secs(5),
             },
             Termination::Kill,
-            std::future::pending::<()>(),
+            cancelled,
+            |bytes| {
+                received.extend_from_slice(bytes);
+                if let Some(cancel) = cancel.take() {
+                    let _ = cancel.send(());
+                }
+            },
         )
         .await;
 
-        assert_matches!(result, Err(ExecutionError::Timeout));
+        assert_matches!(result, Err(ExecutionError::Cancelled));
+        assert_eq!(received, b"12345");
+        assert!(started.elapsed() < Duration::from_secs(2));
     }
 
     #[tokio::test]

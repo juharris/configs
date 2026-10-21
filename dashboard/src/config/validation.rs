@@ -28,6 +28,7 @@ pub struct ValidatedChat {
     pub acknowledgement: Option<CommandTemplate>,
     pub config: ChatConfig,
     pub listener: CommandTemplate,
+    pub recovery: Option<CommandTemplate>,
     pub reply: CommandTemplate,
     pub resume: CommandTemplate,
     pub start: CommandTemplate,
@@ -341,6 +342,14 @@ fn validate_chat(
             "chat.listener.restart_seconds",
             chat.listener.restart_seconds,
         ),
+        (
+            "chat.listener.recovery_timeout_seconds",
+            chat.listener.recovery_timeout_seconds,
+        ),
+        (
+            "chat.listener.startup_timeout_seconds",
+            chat.listener.startup_timeout_seconds,
+        ),
     ] {
         if value == 0 {
             return Err(ConfigError::field(field, "must be greater than zero"));
@@ -373,6 +382,20 @@ fn validate_chat(
             &[],
             shell,
         )?,
+        recovery: chat
+            .listener
+            .recovery
+            .as_deref()
+            .map(|source| {
+                compile_command(
+                    "chat.listener.recovery",
+                    source,
+                    &HashSet::new(),
+                    &[],
+                    shell,
+                )
+            })
+            .transpose()?,
         reply: compile_command(
             "chat.reply.command",
             &chat.reply.command,

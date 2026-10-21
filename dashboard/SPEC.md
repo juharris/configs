@@ -101,9 +101,11 @@ Dependency versions will be pinned in `Cargo.lock` and `pnpm-lock.yaml` when the
 - Vite for the development server and production assets.
 - Vitest and Testing Library for frontend tests.
 - Plain CSS variables and small reusable components initially.
-- concurrently for starting Axum and Vite through one development script and terminating both when either fails.
+- concurrently for starting Axum and Vite through one development script and terminating both when either exits.
 
-The `pnpm --dir dashboard run dev` script starts both application layers.
+The `pnpm --dir dashboard run dev` script compiles the backend before starting both application layers.
+Vite waits for a successful backend `/bootstrap` response before serving requests or opening the browser.
+Backend startup and chat recovery diagnostics remain visible while Vite waits, and a backend exit stops the waiting frontend.
 Vite's documented [`server.proxy`](https://vite.dev/config/server-options#server-proxy) forwards `/bootstrap` and the `/ws` WebSocket upgrade to Axum so the browser uses one origin.
 The production build runs Vite before Cargo so rust-embed receives the current frontend assets.
 
@@ -152,6 +154,17 @@ A provider-specific invocation is data in the YAML command string.
 
 ## Configuration contract
 
+### Startup configuration
+
+The executable accepts repeated `--config-dir <absolute-directory>` and `--feature <name>` arguments for ordered Optify directories and root features.
+Both lists must be supplied together.
+The development script forwards these arguments to the backend; release start scripts pass them directly to the executable.
+Arguments and Optify configuration are validated before serving requests, including connection verification for configured chat.
+The executable's `--help` lists launch options and the distinction between explicit startup and browser setup.
+Reusable launch commands belong in tracked scripts or task configurations.
+The server keeps the selected setup only in memory and never reads or writes a setup snapshot on disk.
+Without explicit startup arguments, the service announces that it is awaiting Optify setup and accepts configuration from a browser.
+
 ### Options page and browser-local state
 
 The Options page is always available from the dashboard navigation and contains these sections in order:
@@ -159,7 +172,7 @@ The Options page is always available from the dashboard navigation and contains 
 1. **Optify directories** provides an ordered list of absolute configuration-directory paths.
 2. **Optify features** provides an ordered list of root feature names to merge.
 
-The dashboard route redirects to the Options page when valid directory and feature arrays are unavailable.
+The dashboard route displays the Options page while valid directory and feature arrays are unavailable.
 After valid Optify setup exists, the page remains available for later changes.
 
 The dashboard also accepts ordered setup values through repeated `config_dirs` and `features` URL query parameters.
@@ -167,6 +180,8 @@ The frontend reads each list with `URLSearchParams.getAll()` and does not parse 
 When either setup parameter is present, the complete URL setup takes precedence over browser-local values.
 An incomplete or invalid URL setup opens the Options page instead of falling back to older persisted values.
 The browser persists URL-provided values only after the backend accepts the setup.
+When a server already has an active configuration, connecting and reconnecting browsers adopt it before considering browser-local or URL-provided values.
+The Options page's explicit **Apply Optify configuration** action can change that process-wide setup.
 
 The browser persists exactly two values in `localStorage`:
 
@@ -761,7 +776,11 @@ options:
       stop: { name: /stop, description: Stop the turn and clear the queue. }
     listener:
       command: chat-tool listen
-      restart_seconds: 60
+      recovery: chat-tool authenticate
+      recovery_timeout_seconds: 75
+      restart_attempts: 1
+      restart_seconds: 1
+      startup_timeout_seconds: 15
     models:
       available: [haiku, opus, sonnet]
       default: opus
@@ -775,9 +794,10 @@ options:
 
 ### Listener protocol
 
-The listener is a long-running command that prints one JSON object per line for each message the dashboard may act on:
+The listener is a long-running command that prints a readiness event after connecting, then one JSON object per trusted message:
 
 ```json
+{"ready": true}
 {"id": "https://example.slack.com/archives/D123/p1700000000000100", "text": "/ai fix the flaky test", "thread": null}
 ```
 
@@ -785,15 +805,46 @@ The listener is a long-running command that prints one JSON object per line for 
 - `text` is the complete message text.
 - `thread` is the ID of the message that started the thread being replied to, or `null` for a message outside a thread.
 
-Lines with invalid JSON, unknown fields, blank IDs, or more than `application.max_output_bytes_per_run` bytes are skipped and logged without their content.
+Invalid JSON, unknown fields, blank IDs, messages before readiness, and lines exceeding `application.max_output_bytes_per_run` fail the listener without logging their content.
+A listener can report `{"error": "authentication"}` or `{"error": "connection"}` to fail immediately with a safe category.
+No arbitrary diagnostic text is accepted through the protocol.
 The listener's standard error is discarded because diagnostics can contain credentials.
 
 The listener starts when a validated configuration enables chat.
-When it exits, the dashboard stops its process group, waits `listener.restart_seconds`, and starts it again.
-A configuration reload restarts it only when its resolved command, shell, working directory, output limit, or restart delay changes.
+Each connection attempt must report readiness within `listener.startup_timeout_seconds`.
+A process that exits, even successfully, or reports a failure stops its process group.
+Before retrying, the dashboard runs the optional `listener.recovery` command under `listener.recovery_timeout_seconds`, accepting only safe diagnostics through the recovery protocol below.
+A failed recovery or exhausted `listener.restart_attempts` stops the dashboard with a nonzero exit.
+Retries wait `listener.restart_seconds` and remain bounded after startup as well.
+A configuration reload restarts the listener when its command, recovery settings, shell, working directory, output limit, or retry settings change.
 
 Anyone whose messages the listener prints can run the configured agent commands.
 The listener is therefore responsible for printing only messages from trusted senders in trusted conversations.
+
+### Recovery protocol
+
+A recovery wrapper can print one JSON object per line to standard output:
+
+```json
+{"instructions": "Run chat-tool authenticate in a terminal, verify with chat-tool test, then restart the dashboard."}
+{"progress": "Opening the chat login window; complete sign-in within 60 seconds."}
+{"error": "The login deadline expired before credentials became available."}
+```
+
+The wrapper must translate raw tool output into controlled, credential-free messages.
+Never connect an authentication CLI's raw output directly to this protocol, because it can print tokens and cookies.
+Standard error, invalid JSON, and objects that do not match exactly one of these event shapes are discarded.
+Diagnostic text is bounded and control characters are filtered before logging.
+Emit `instructions` before starting a slow operation so a timeout can still explain the exact manual repair command.
+
+The dashboard logs the overall recovery deadline immediately, streams these events as they arrive, and prints elapsed and remaining seconds every 10 seconds.
+Progress and instructions use the warning log level so they remain visible with `RUST_LOG=warn`.
+An `error` event fails recovery immediately and stops its process group, including when the command would otherwise exit successfully.
+A nonzero exit, output-limit failure, or deadline also fails recovery.
+The deadline includes waiting for process exit and draining output; all recovery descendants are stopped on completion or failure.
+The final failure includes the reason, last reported stage, and repair instructions when supplied.
+Instructions also survive a successful repair followed by exhausted connection attempts.
+Without protocol instructions, a failure asks the operator to run the configured recovery command in a terminal for diagnosis.
 
 ### Commands and routing
 
@@ -850,11 +901,12 @@ Every chat command runs in `chat.working_directory`, which must be one of `appli
 
 ### Chat validation
 
-- `agent.timeout_seconds` and `listener.restart_seconds` must be positive.
+- `agent.timeout_seconds`, `listener.recovery_timeout_seconds`, `listener.restart_seconds`, and `listener.startup_timeout_seconds` must be positive.
+- `listener.restart_attempts` may be zero to fail after the first unsuccessful connection attempt.
 - Each command `name` must be one unique word without whitespace, and each `description` must not be blank.
 - `models.available` must list at least one unique single-word model and include `models.default`.
 - `reply.prefix` must not be blank.
-- `listener.command` accepts no placeholders.
+- `listener.command` and `listener.recovery` accept no placeholders.
 - `agent.start` and `agent.resume` accept `{conversation.id}`, `{conversation.model}`, `{conversation.session_id}`, and `{message.text}`, and must use `{message.text}`.
 - `reply.command` must use `{conversation.id}` and `{reply.text}`, and accepts no other placeholder.
 - `acknowledgement` accepts `{conversation.id}` and must use `{message.id}`.
@@ -865,7 +917,9 @@ Conversations, queues, and model selections are in memory and last only as long 
 Disabling chat forgets them and interrupts every running turn.
 After a service restart, messages in an earlier conversation's thread are not routed to that conversation.
 A `start` message in that thread begins a new agent session without the earlier conversation's context.
-Because each browser tab supplies the Optify setup, the listener starts only after a browser has applied a valid setup since the service started.
+With explicit startup directories and features, the server validates the setup and waits for the listener connection before announcing readiness or serving the application.
+An invalid startup setup fails explicitly.
+Without startup arguments, the server waits for a browser to apply the setup.
 
 ## User interface
 
@@ -956,7 +1010,7 @@ The package scripts inside `dashboard/` provide the contributor interface:
 
 - `pnpm --dir dashboard run build` builds the frontend and Rust executable with embedded assets.
 - `pnpm --dir dashboard run check` runs formatting, Clippy, Rust tests, TypeScript checking, ESLint, frontend tests, and generated-artifact checks.
-- `pnpm --dir dashboard run dev` starts Axum and Vite together.
+- `pnpm --dir dashboard run dev` compiles the backend, then starts Axum and Vite with frontend readiness gated on the backend.
 - `pnpm --dir dashboard run schema:generate` regenerates the committed JSON Schema.
 - `pnpm --dir dashboard run start` starts the release server and opens the browser.
 - `pnpm --dir dashboard run test` runs Rust and frontend tests.

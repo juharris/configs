@@ -207,7 +207,52 @@ describe("WebSocketClient", () => {
     client.stop();
   });
 
-  it("synchronizes saved setup and consumes configuration events", async () => {
+  it.each([
+    null,
+    {
+      configDirectories: ["/stale-browser/configs"],
+      features: ["stale-browser-feature"],
+    },
+  ])(
+    "adopts active server configuration over browser setup %j",
+    async (browserSetup) => {
+      stubBootstrap("token-active");
+      vi.stubGlobal("WebSocket", FakeWebSocket);
+      const onConfiguration = vi.fn();
+      const client = new WebSocketClient({
+        getSetup: () => browserSetup,
+        onAutocomplete: vi.fn(),
+        onConfiguration,
+        onDashboard: vi.fn(),
+        onError: vi.fn(),
+        onRun: vi.fn(),
+        onRuns: vi.fn(),
+        onStatus: vi.fn(),
+      });
+
+      client.start();
+      await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+      const socket = FakeWebSocket.instances[0];
+      socket.open();
+      socket.receive({
+        activeConfiguration: configuration,
+        connectionId: "connection-active",
+        dashboard,
+        eventSequence: 0,
+        protocolVersion: 10,
+        run: null,
+        runs: [],
+        setupStatus: "configured",
+        type: "connection_ready",
+      });
+
+      expect(onConfiguration).toHaveBeenCalledWith(configuration);
+      expect(socket.sent).toHaveLength(1);
+      client.stop();
+    },
+  );
+
+  it("synchronizes saved setup when the server is unconfigured and consumes configuration events", async () => {
     stubBootstrap("token-2");
     vi.stubGlobal("WebSocket", FakeWebSocket);
     const onConfiguration = vi.fn();

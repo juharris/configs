@@ -13,7 +13,7 @@ use tower_http::trace::TraceLayer;
 use crate::chat::ChatRuntime;
 use crate::config::ConfigService;
 use crate::connections::{BootstrapTokenStore, ConnectionHub};
-use crate::messages::{BootstrapResponse, PROTOCOL_VERSION};
+use crate::messages::{BootstrapResponse, OptifySetup, PROTOCOL_VERSION};
 use crate::processes::ProcessService;
 use crate::router::MessageRouter;
 use crate::session::{self, SessionServices};
@@ -31,25 +31,69 @@ struct ApplicationState {
     sessions: SessionServices,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LaunchOptions {
     pub open_browser: bool,
+    pub setup: Option<OptifySetup>,
+    pub show_help: bool,
 }
 
 impl LaunchOptions {
+    pub const USAGE: &str = concat!(
+        "Usage: personal-dashboard [--no-open] [--config-dir <absolute-directory> ... --feature <name> ...]\n",
+        "\n",
+        "  --config-dir <absolute-directory>  Add an ordered Optify configuration directory.\n",
+        "  --feature <name>                   Add an ordered Optify root feature.\n",
+        "  --no-open                          Start without opening the browser.\n",
+        "  --help                             Show this help.\n",
+        "\n",
+        "Supply both --config-dir and --feature for startup validation.\n",
+        "Without them, apply configuration through the browser Options page.\n",
+        "The server keeps setup in memory and never saves or restores it from disk.",
+    );
+
     pub fn from_arguments(arguments: impl IntoIterator<Item = String>) -> Result<Self, String> {
         let mut arguments = arguments.into_iter();
-        let options = match arguments.next().as_deref() {
-            None => Self { open_browser: true },
-            Some("--no-open") => Self {
-                open_browser: false,
-            },
-            Some(argument) => return Err(format!("unsupported argument: {argument}")),
+        let mut config_directories = Vec::new();
+        let mut features = Vec::new();
+        let mut options = Self {
+            open_browser: true,
+            setup: None,
+            show_help: false,
         };
-        if let Some(argument) = arguments.next() {
-            return Err(format!("unsupported argument: {argument}"));
+        while let Some(argument) = arguments.next() {
+            match argument.as_str() {
+                "--config-dir" => {
+                    config_directories.push(Self::argument_value(&argument, &mut arguments)?);
+                }
+                "--feature" => {
+                    features.push(Self::argument_value(&argument, &mut arguments)?);
+                }
+                "--help" => options.show_help = true,
+                "--no-open" => options.open_browser = false,
+                _ => return Err(format!("unsupported argument: {argument}")),
+            }
+        }
+        if config_directories.is_empty() != features.is_empty() {
+            return Err("--config-dir and --feature must be supplied together".to_owned());
+        }
+        if !config_directories.is_empty() {
+            options.setup = Some(OptifySetup {
+                config_directories,
+                features,
+            });
         }
         Ok(options)
+    }
+
+    fn argument_value(
+        flag: &str,
+        arguments: &mut impl Iterator<Item = String>,
+    ) -> Result<String, String> {
+        arguments
+            .next()
+            .filter(|value| !value.trim().is_empty() && !value.starts_with('-'))
+            .ok_or_else(|| format!("{flag} requires a value"))
     }
 }
 
@@ -70,12 +114,16 @@ pub async fn serve(
             "could not bind Personal Dashboard to http://{address}; stop the process using port {port} and try again: {error}"
         )
     })?;
-    tokio::spawn(ChatRuntime::new(&config_service).run());
+    let mut chat = ChatRuntime::new(&config_service).start().await?;
     let (dashboard_service, dashboard_runtime) = DashboardService::new(config_service.clone());
     tokio::spawn(dashboard_runtime.run());
-    let application = application(config_service, dashboard_service);
+    let application = application(config_service.clone(), dashboard_service);
     let url = format!("http://{address}");
-    tracing::info!(%url, "Personal Dashboard is ready");
+    if config_service.snapshot()?.is_some() {
+        tracing::info!(%url, "Personal Dashboard is ready");
+    } else {
+        tracing::info!(%url, "Personal Dashboard is awaiting Optify setup");
+    }
 
     #[cfg(not(debug_assertions))]
     if options.open_browser {
@@ -83,7 +131,13 @@ pub async fn serve(
             .map_err(|error| format!("could not open the default browser at {url}: {error}"))?;
     }
 
-    axum::serve(listener, application).await?;
+    tokio::select! {
+        result = axum::serve(listener, application).into_future() => result?,
+        result = chat.wait() => {
+            result?;
+            return Err("chat runtime stopped unexpectedly".into());
+        }
+    }
     Ok(())
 }
 
@@ -219,15 +273,65 @@ mod tests {
     fn opens_the_browser_by_default_and_supports_headless_verification() {
         assert_eq!(
             LaunchOptions::from_arguments(Vec::new()).unwrap(),
-            LaunchOptions { open_browser: true }
+            LaunchOptions {
+                open_browser: true,
+                setup: None,
+                show_help: false,
+            }
         );
         assert_eq!(
             LaunchOptions::from_arguments(["--no-open".to_owned()]).unwrap(),
             LaunchOptions {
-                open_browser: false
+                open_browser: false,
+                setup: None,
+                show_help: false,
             }
         );
         assert!(LaunchOptions::from_arguments(["--unknown".to_owned()]).is_err());
+        assert!(
+            LaunchOptions::from_arguments(["--help".to_owned()])
+                .unwrap()
+                .show_help
+        );
+    }
+
+    #[test]
+    fn parses_explicit_ordered_startup_configuration_and_rejects_incomplete_arguments() {
+        let explicit = LaunchOptions::from_arguments(
+            [
+                "--config-dir",
+                "/personal/configs",
+                "--feature",
+                "dashboard",
+                "--config-dir",
+                "/work/configs",
+                "--feature",
+                "work-dashboard",
+                "--no-open",
+            ]
+            .map(str::to_owned),
+        )
+        .unwrap();
+        let setup = explicit.setup.unwrap();
+        assert_eq!(
+            setup.config_directories,
+            ["/personal/configs", "/work/configs"]
+        );
+        assert_eq!(setup.features, ["dashboard", "work-dashboard"]);
+        assert!(!explicit.open_browser);
+        for arguments in [
+            vec!["--config-dir"],
+            vec!["--feature"],
+            vec!["--config-dir", "/personal/configs"],
+            vec!["--feature", "dashboard"],
+            vec!["--config-dir", "--feature", "dashboard"],
+            vec!["--feature", " "],
+            vec!["--setup-file", "/tmp/setup.json"],
+        ] {
+            assert!(
+                LaunchOptions::from_arguments(arguments.into_iter().map(str::to_owned)).is_err()
+            );
+        }
     }
 
     #[test]

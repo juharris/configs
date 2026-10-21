@@ -22,13 +22,34 @@ pnpm --dir dashboard install
 pnpm --dir dashboard run dev
 ```
 
-`pnpm --dir dashboard run dev` starts Axum and Vite together and stops both if either fails.
+`pnpm --dir dashboard run dev` compiles the backend before starting Axum and Vite together, then stops both if either exits.
+A compilation failure exits before Vite starts or opens the browser.
+Vite waits for the backend's `/bootstrap` endpoint before serving requests or opening the browser.
+Backend startup and chat recovery diagnostics remain visible while it waits.
+Bootstrap retries after a refused or reset backend connection do not repeat Vite proxy stack traces.
 Vite proxies `/bootstrap` and `/ws` to Axum, so contributors do not need a second terminal or a separately managed backend.
 Open `http://127.0.0.1:5173`, the loopback URL printed by Vite, in a normal browser.
 Vite keeps that stable public origin and proxies application traffic to Axum on `127.0.0.1:3000`, so Optify setup persists across restarts.
 If that port is occupied, stop the conflicting process and rerun the command rather than switching to a random port.
 
-Directories and features can be supplied as repeated URL query parameters to open and apply a setup without first editing the Options page:
+Supply configuration directories and root features explicitly to validate configuration and connect chat before the backend serves requests:
+
+```sh
+pnpm --dir dashboard run dev \
+  --config-dir /Users/jus/src/github.com/shopify-playground/justin.harris.dotfiles/dashboard/configs \
+  --feature dashboard
+```
+
+Both `--config-dir` and `--feature` are required when either is supplied.
+Repeat each flag to preserve multiple ordered directories and features.
+The same arguments work with `pnpm --dir dashboard run start` and `pnpm --dir dashboard run start:verify`.
+Keep reusable launch commands in a tracked script or task configuration alongside the configuration they select.
+Run `pnpm --dir dashboard run start:verify --help` to inspect the release executable's launch options after building.
+The server keeps setup in memory and never writes or restores a setup file.
+Invalid arguments or configuration fail startup explicitly.
+Without startup arguments, the server waits for the browser's setup.
+
+When the server is unconfigured, directories and features can also be supplied as repeated URL query parameters to open and apply a setup without first editing the Options page:
 
 ```text
 http://127.0.0.1:5173/?config_dirs=/Users/jus/src/github.com/shopify-playground/justin.harris.dotfiles/dashboard/configs&features=dashboard
@@ -43,6 +64,8 @@ http://127.0.0.1:5173/?config_dirs=/personal/configs&config_dirs=/work/configs&f
 The frontend reads repeated values with `URLSearchParams.getAll()` rather than parsing delimiters inside a parameter.
 A URL setup takes precedence over saved browser values and is persisted only after the backend accepts it.
 An incomplete or invalid URL setup opens the Options page instead of silently using older saved values.
+An already configured server supplies the active setup to connecting browsers, taking precedence over their cached or URL-provided lists.
+Use the Options page's **Apply Optify configuration** action to deliberately change that running setup.
 
 On first use, open the Options page and add one or more absolute configuration-directory paths under **Optify directories**.
 For example, the first directory might contain personal configuration while the second contains private-work configuration.
@@ -135,7 +158,11 @@ This keeps the allowed directories configuration-driven and ensures the preview,
 
 Chat is disabled unless a selected feature defines `chat`, so the repository example does not configure it.
 Keep chat listener, reply, and acknowledgement commands in a personal configuration directory because they act on your chat account.
-Before enabling a listener, run its command in a terminal and confirm that it prints one JSON message per line for only the messages the dashboard should act on.
+A listener must print `{"ready": true}` only after connecting, followed by one JSON object per trusted message.
+Configure connection and recovery timeouts, a restart limit, and an optional recovery command next to the listener.
+Recovery commands may refresh authentication and stream safe progress and repair instructions using the recovery protocol.
+Wrap credential-bearing CLI commands and translate their output into controlled messages; never forward raw authentication output.
+Standard error and output that does not match the recovery protocol are discarded.
 See the [chat section of the technical specification](SPEC.md#chat) for the listener protocol and an example.
 
 ## Schema and live reload
@@ -212,8 +239,13 @@ If configuration diagnostics do not appear, confirm that the workspace is opened
 If a configured program works in a terminal but not in the dashboard, inspect the environment of the process that started the server.
 Launchers and non-interactive processes may not inherit the same `PATH` as a terminal.
 
-If chat does not respond, confirm that a browser tab has applied the Optify setup since the server started, because the listener starts only after a valid setup enables chat.
-Then check the server output for chat listener exits and failed chat commands, which are logged without message text.
+Chat must connect before a configured dashboard announces readiness.
+Check the terminal for a typed authentication or connection error, recovery deadline, live progress, and repair instructions.
+Recovery progress remains visible with `RUST_LOG=warn`, with elapsed time every 10 seconds during a long repair.
+If repair fails, the final error repeats the last recovery stage and instructions, including when a deadline stops the command.
+The dashboard exits unsuccessfully after a failed recovery or exhausted connection attempts, including after a later disconnection.
+A listener that remains alive without reporting readiness fails its startup timeout.
+Without startup arguments, apply the Optify setup in the browser before chat starts.
 
 If startup rejects the configuration, fix the first schema or template error and rerun `pnpm --dir dashboard run dev`.
 The application does not substitute sample configuration, guessed paths, or missing environment values.
