@@ -36,13 +36,7 @@ export function App() {
   const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
   const [run, setRun] = useState<RunSnapshot | null>(null);
   const [runLogs, setRunLogs] = useState<RunSnapshot[] | null>(null);
-  const [path, setPath] = useState(() => {
-    if (acceptedSetup === null && window.location.pathname !== "/options") {
-      window.history.replaceState(null, "", "/options");
-      return "/options";
-    }
-    return window.location.pathname;
-  });
+  const [path, setPath] = useState(() => window.location.pathname);
   const acceptedSetupRef = useRef(acceptedSetup);
   const clientRef = useRef<WebSocketClient | null>(null);
 

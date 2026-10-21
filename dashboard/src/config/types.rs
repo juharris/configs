@@ -123,10 +123,18 @@ pub struct ChatConfig {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ChatListenerConfig {
-    /// Prints one JSON object per line with `id`, `text`, and `thread` fields.
+    /// Prints a ready event after connecting, then incoming messages as JSON lines.
     pub command: String,
+    /// Repairs listener dependencies or authentication before another connection attempt.
+    pub recovery: Option<String>,
+    /// Bounds each recovery command, including any interactive authentication.
+    pub recovery_timeout_seconds: u64,
+    /// Limits restarts before a listener failure stops the dashboard.
+    pub restart_attempts: usize,
     /// Is the delay before the dashboard restarts a listener that exited.
     pub restart_seconds: u64,
+    /// Bounds the wait for an explicit ready event from each connection attempt.
+    pub startup_timeout_seconds: u64,
 }
 
 /// Lists the models that chat conversations can select.

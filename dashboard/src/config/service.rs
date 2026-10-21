@@ -503,6 +503,19 @@ mod tests {
         );
     }
 
+    #[test]
+    fn starts_unconfigured_after_a_previous_service_applied_setup() {
+        let fixture = ConfigFixture::new();
+        let (service, _reload) = ConfigService::new(RuntimeSchema::materialize().unwrap());
+        service.apply_setup(fixture.setup()).unwrap();
+        drop(service);
+
+        let (fresh, _reload) = ConfigService::new(RuntimeSchema::materialize().unwrap());
+
+        assert!(fresh.snapshot().unwrap().is_none());
+        assert!(fresh.subscribe().borrow().is_none());
+    }
+
     struct ConfigFixture {
         base: TempDir,
         override_directory: TempDir,

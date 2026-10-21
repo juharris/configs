@@ -84,9 +84,10 @@ The optional `chat` configuration lets you start and continue coding-agent conve
 The dashboard has no built-in chat or agent integration.
 Configured commands listen for messages, run agent turns, and post replies, so the same feature works with any chat client or agent CLI that a script can drive.
 
-The listener is a long-running command that prints one JSON object per line:
+The listener is a long-running command that first confirms its connection, then prints one JSON object per message:
 
 ```json
+{"ready": true}
 {"id": "https://example.slack.com/archives/D123/p1700000000000100", "text": "/ai fix the flaky test", "thread": null}
 ```
 
@@ -129,7 +130,16 @@ Chat commands can fill in these placeholders:
 
 `agent.start` runs the first turn and `agent.resume` runs later turns with the same `{conversation.session_id}`.
 Conversations are kept in memory, so restarting the dashboard forgets them.
-The listener starts once a browser tab has applied a valid Optify setup that enables chat.
+Supply ordered `--config-dir` and `--feature` arguments to [validate configuration at startup](CONTRIBUTING.md#install-and-run).
+The server keeps the selected setup in memory for its lifetime.
+A configured chat listener must report `{"ready": true}` within `listener.startup_timeout_seconds` before the dashboard announces readiness.
+On failure, it runs the optional `listener.recovery` command with its own `recovery_timeout_seconds` deadline and retries up to `listener.restart_attempts` times, waiting `listener.restart_seconds` between attempts.
+Recovery prints its deadline immediately and elapsed time every 10 seconds.
+A recovery wrapper can stream safe JSON progress, repair instructions, and failure reasons using the [recovery protocol](SPEC.md#recovery-protocol).
+Instructions appear immediately and remain in the final failure message, including after a timeout or failed reconnection.
+A failed repair or exhausted connection attempts stops the dashboard with a nonzero exit and a safe error message.
+This also applies when a connected listener later disconnects.
+Without startup arguments, the server waits for a browser to supply the Optify setup.
 
 ## Documentation
 

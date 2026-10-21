@@ -282,11 +282,36 @@
       "description": "Defines the long-running command that prints incoming chat messages.",
       "properties": {
         "command": {
-          "description": "Prints one JSON object per line with `id`, `text`, and `thread` fields.",
+          "description": "Prints a ready event after connecting, then incoming messages as JSON lines.",
           "type": "string"
+        },
+        "recovery": {
+          "description": "Repairs listener dependencies or authentication before another connection attempt.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "recovery_timeout_seconds": {
+          "description": "Bounds each recovery command, including any interactive authentication.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "restart_attempts": {
+          "description": "Limits restarts before a listener failure stops the dashboard.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
         },
         "restart_seconds": {
           "description": "Is the delay before the dashboard restarts a listener that exited.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "startup_timeout_seconds": {
+          "description": "Bounds the wait for an explicit ready event from each connection attempt.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -294,7 +319,10 @@
       },
       "required": [
         "command",
-        "restart_seconds"
+        "recovery_timeout_seconds",
+        "restart_attempts",
+        "restart_seconds",
+        "startup_timeout_seconds"
       ],
       "type": "object"
     },

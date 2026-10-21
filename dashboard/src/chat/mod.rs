@@ -1,5 +1,6 @@
 mod conversations;
 mod listener;
+mod recovery;
 mod requests;
 
 use std::collections::HashMap;
@@ -24,19 +25,48 @@ const MESSAGE_QUEUE_CAPACITY: usize = 64;
 
 /// Connects configured chat commands to coding-agent turns for as long as the dashboard runs.
 ///
-/// The runtime starts the listener once a validated configuration enables chat and restarts it only when its command changes.
+/// The runtime verifies the configured connection and propagates unrecoverable failures to the server.
 pub struct ChatRuntime {
     configuration_receiver: watch::Receiver<Option<ConfigurationSnapshot>>,
+    readiness: watch::Sender<bool>,
 }
 
 impl ChatRuntime {
     pub fn new(config_service: &ConfigService) -> Self {
         Self {
             configuration_receiver: config_service.subscribe(),
+            readiness: watch::channel(false).0,
         }
     }
 
-    pub async fn run(mut self) {
+    pub fn readiness(&self) -> watch::Receiver<bool> {
+        self.readiness.subscribe()
+    }
+
+    /// Starts the runtime and waits for the configured listener's verified connection.
+    pub async fn start(self) -> Result<ChatTask, String> {
+        let mut readiness = self.readiness();
+        let mut task = ChatTask {
+            handle: tokio::spawn(self.run()),
+        };
+        while !*readiness.borrow() {
+            tokio::select! {
+                result = task.wait() => {
+                    result?;
+                    return Err("chat runtime stopped before startup completed".to_owned());
+                },
+                result = readiness.changed() => {
+                    if result.is_err() {
+                        task.wait().await?;
+                        return Err("chat readiness channel closed".to_owned());
+                    }
+                }
+            }
+        }
+        Ok(task)
+    }
+
+    pub async fn run(mut self) -> Result<(), String> {
         let (delivery_sender, delivery_receiver) = mpsc::unbounded_channel();
         let (message_sender, mut message_receiver) = mpsc::channel(MESSAGE_QUEUE_CAPACITY);
         let (turn_sender, mut turn_receiver) = mpsc::unbounded_channel();
@@ -44,6 +74,7 @@ impl ChatRuntime {
         let mut state = ChatState {
             conversations: Conversations::default(),
             deliveries: delivery_sender,
+            readiness: self.readiness,
             listener: None,
             messages: message_sender,
             settings: None,
@@ -57,15 +88,38 @@ impl ChatRuntime {
             tokio::select! {
                 configuration = self.configuration_receiver.changed() => {
                     if configuration.is_err() {
-                        return;
+                        return Ok(());
                     }
                     let configuration = self.configuration_receiver.borrow_and_update().clone();
                     state.configure(configuration.as_ref());
+                }
+                result = wait_for_listener(&mut state.listener) => {
+                    result?;
+                    return Err("chat listener stopped unexpectedly".to_owned());
                 }
                 Some(message) = message_receiver.recv() => state.receive(message),
                 Some(finished) = turn_receiver.recv() => state.finish_turn(finished),
             }
         }
+    }
+}
+
+/// Stops the chat process tree when the server exits, including failed startup.
+pub struct ChatTask {
+    handle: JoinHandle<Result<(), String>>,
+}
+
+impl ChatTask {
+    pub async fn wait(&mut self) -> Result<(), String> {
+        (&mut self.handle)
+            .await
+            .map_err(|error| format!("chat runtime failed: {error}"))?
+    }
+}
+
+impl Drop for ChatTask {
+    fn drop(&mut self) {
+        self.handle.abort();
     }
 }
 
@@ -84,7 +138,7 @@ struct FinishedTurn {
 
 /// Owns the supervised listener so replacing or dropping it stops the listener's process group.
 struct ListenerTask {
-    handle: JoinHandle<()>,
+    handle: JoinHandle<Result<(), String>>,
     settings: ListenerSettings,
 }
 
@@ -97,8 +151,12 @@ impl Drop for ListenerTask {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ListenerSettings {
     max_line_bytes: usize,
+    recovery: Option<ShellScript>,
+    recovery_timeout: Duration,
     restart: Duration,
+    restart_attempts: usize,
     script: ShellScript,
+    startup_timeout: Duration,
 }
 
 /// Holds the validated chat configuration with the application limits that chat commands share.
@@ -132,7 +190,17 @@ impl ChatSettings {
     fn listener(&self) -> ListenerSettings {
         ListenerSettings {
             max_line_bytes: self.command_limits.max_output_bytes,
+            recovery: self
+                .chat
+                .recovery
+                .as_ref()
+                .map(|template| self.script(template, Vec::new())),
+            recovery_timeout: Duration::from_secs(
+                self.chat.config.listener.recovery_timeout_seconds,
+            ),
+            restart_attempts: self.chat.config.listener.restart_attempts,
             restart: Duration::from_secs(self.chat.config.listener.restart_seconds),
+            startup_timeout: Duration::from_secs(self.chat.config.listener.startup_timeout_seconds),
             script: self.script(&self.chat.listener, Vec::new()),
         }
     }
@@ -159,6 +227,7 @@ struct ChatState {
     conversations: Conversations,
     deliveries: mpsc::UnboundedSender<Delivery>,
     listener: Option<ListenerTask>,
+    readiness: watch::Sender<bool>,
     messages: mpsc::Sender<ChatMessage>,
     settings: Option<Arc<ChatSettings>>,
     /// Interrupts a running turn when its sender is used or dropped.
@@ -212,6 +281,7 @@ impl ChatState {
             }
             self.conversations = Conversations::default();
             self.listener = None;
+            self.readiness.send_replace(true);
             // Dropping each cancellation sender interrupts its turn.
             self.turn_cancellations.clear();
             return;
@@ -223,8 +293,13 @@ impl ChatState {
             .as_ref()
             .is_none_or(|active| active.settings != listener)
         {
+            self.readiness.send_replace(false);
             self.listener = Some(ListenerTask {
-                handle: tokio::spawn(supervise_listener(listener.clone(), self.messages.clone())),
+                handle: tokio::spawn(supervise_listener(
+                    listener.clone(),
+                    self.messages.clone(),
+                    self.readiness.clone(),
+                )),
                 settings: listener,
             });
         }
@@ -373,26 +448,76 @@ async fn run_turn(
     TurnOutcome::Completed(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
-/// Keeps the listener running, waiting the configured delay after each exit before starting it again.
-async fn supervise_listener(settings: ListenerSettings, messages: mpsc::Sender<ChatMessage>) {
-    loop {
-        tracing::info!("chat listener started");
-        match listener::listen(&settings.script, settings.max_line_bytes, &messages).await {
-            Ok(status) => tracing::warn!(
-                restart_seconds = settings.restart.as_secs(),
-                status = %exit_status_code(status),
-                "chat listener exited"
-            ),
-            Err(error) => tracing::warn!(
-                category = error.category(),
-                restart_seconds = settings.restart.as_secs(),
-                "chat listener failed"
-            ),
+/// Attempts bounded repair and reconnection, then makes an unavailable chat service fatal.
+async fn supervise_listener(
+    settings: ListenerSettings,
+    messages: mpsc::Sender<ChatMessage>,
+    readiness: watch::Sender<bool>,
+) -> Result<(), String> {
+    let mut repair_instructions = None;
+    for attempt in 0..=settings.restart_attempts {
+        tracing::info!(
+            attempt = attempt + 1,
+            max_attempts = settings.restart_attempts + 1,
+            timeout_seconds = settings.startup_timeout.as_secs(),
+            "connecting chat listener"
+        );
+        let error = match listener::listen(
+            &settings.script,
+            settings.max_line_bytes,
+            settings.startup_timeout,
+            &messages,
+            &readiness,
+        )
+        .await
+        {
+            Ok(()) => return Ok(()),
+            Err(error) => error,
+        };
+        readiness.send_replace(false);
+        tracing::error!(%error, "chat listener unavailable");
+        if attempt == settings.restart_attempts {
+            let instructions = repair_instructions
+                .map(|instructions| format!("\nTo fix: {instructions}"))
+                .unwrap_or_default();
+            return Err(format!(
+                "{error}; exhausted {} connection attempts; stopping Personal Dashboard{instructions}",
+                attempt + 1
+            ));
         }
-        if messages.is_closed() {
-            return;
+        if let Some(recovery) = &settings.recovery {
+            let instructions = recovery::recover(
+                recovery,
+                CaptureLimits {
+                    max_output_bytes: settings.max_line_bytes,
+                    timeout: settings.recovery_timeout,
+                },
+            )
+            .await
+            .map_err(|detail| {
+                format!("{error}; {detail}\nChat is unavailable; stopping Personal Dashboard.")
+            })?;
+            if instructions.is_some() {
+                repair_instructions = instructions;
+            }
         }
+        tracing::warn!(
+            delay_seconds = settings.restart.as_secs(),
+            next_attempt = attempt + 2,
+            "retrying chat listener connection"
+        );
         tokio::time::sleep(settings.restart).await;
+    }
+    unreachable!("the final connection attempt always returns")
+}
+
+/// Observes the active task so a supervisor panic cannot leave chat silently unavailable.
+async fn wait_for_listener(listener: &mut Option<ListenerTask>) -> Result<(), String> {
+    match listener {
+        Some(listener) => (&mut listener.handle)
+            .await
+            .map_err(|error| format!("chat listener supervision failed: {error}"))?,
+        None => std::future::pending().await,
     }
 }
 
@@ -435,7 +560,11 @@ pub(crate) mod tests {
             },
             listener: ChatListenerConfig {
                 command: "listen".to_owned(),
+                recovery: None,
+                recovery_timeout_seconds: 1,
+                restart_attempts: 1,
                 restart_seconds: 1,
+                startup_timeout_seconds: 1,
             },
             models: ChatModelsConfig {
                 available: vec!["haiku".to_owned(), "opus".to_owned(), "sonnet".to_owned()],
@@ -455,6 +584,7 @@ pub(crate) mod tests {
         let replies = directory.path().join("replies");
         let acknowledgements = directory.path().join("acknowledgements");
         let listener = [
+            r#"printf '%s\n' '{"ready":true}'"#,
             r#"printf '%s\n' '{"id": "c1", "text": "/ai hello", "thread": null}'"#,
             r#"printf '%s\n' '{"id": "c2", "text": "/ai wait", "thread": null}'"#,
             "sleep 0.5",
@@ -475,7 +605,7 @@ pub(crate) mod tests {
                     "timeout_seconds": 10,
                 },
                 "commands": chat_config().commands,
-                "listener": { "command": listener, "restart_seconds": 60 },
+                "listener": { "command": listener, "recovery_timeout_seconds": 1, "restart_attempts": 1, "restart_seconds": 1, "startup_timeout_seconds": 1 },
                 "models": chat_config().models,
                 "reply": {
                     "command": format!(
@@ -510,6 +640,116 @@ pub(crate) mod tests {
         let mut acknowledged = wait_for_lines(&acknowledgements, 3).await;
         acknowledged.sort();
         assert_eq!(acknowledged, ["c1 c1", "c2 c2", "c2 m3"]);
+    }
+
+    #[tokio::test]
+    async fn waits_for_connection_repairs_once_and_stops_the_process_tree_on_shutdown() {
+        let directory = workspace_tempdir();
+        let mut chat = serde_json::to_value(chat_config()).unwrap();
+        chat["working_directory"] = json!(directory.path());
+        chat["listener"]["command"] = json!(
+            "echo $$ > listener.pid; if [ ! -f repaired ]; then printf '%s\\n' '{\"error\":\"authentication\"}'; else printf '%s\\n' '{\"ready\":true}'; sleep 30 & echo $! > descendant.pid; wait; fi"
+        );
+        chat["listener"]["recovery"] = json!("touch repaired");
+        write_configuration(directory.path(), chat);
+        let (service, _reload) = ConfigService::new(RuntimeSchema::materialize().unwrap());
+        service
+            .apply_setup(OptifySetup {
+                config_directories: vec![directory.path().display().to_string()],
+                features: vec!["dashboard".to_owned()],
+            })
+            .unwrap();
+        let task = tokio::time::timeout(Duration::from_secs(5), ChatRuntime::new(&service).start())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(directory.path().join("repaired").exists());
+        let pid = wait_for_lines(&directory.path().join("descendant.pid"), 1).await[0]
+            .parse::<i32>()
+            .unwrap();
+        assert_eq!(unsafe { libc::kill(pid, 0) }, 0);
+        drop(task);
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while unsafe { libc::kill(pid, 0) } == 0 {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("listener descendant survived shutdown");
+    }
+
+    #[tokio::test]
+    async fn fails_startup_after_bounded_attempts_or_failed_recovery_without_leaking_output() {
+        for (recovery, expected_attempts, detail) in [
+            (None, 2, "exhausted 2 connection attempts"),
+            (Some("printf secret-token >&2; exit 9"), 1, "exit status 9"),
+            (
+                Some(r#"printf '%s\n' '{"instructions":"Run chat-tool authenticate."}'"#),
+                2,
+                "To fix: Run chat-tool authenticate.",
+            ),
+        ] {
+            let directory = workspace_tempdir();
+            let mut chat = serde_json::to_value(chat_config()).unwrap();
+            chat["working_directory"] = json!(directory.path());
+            chat["listener"]["command"] =
+                json!("echo attempt >> attempts; printf '%s\\n' '{\"error\":\"authentication\"}'");
+            chat["listener"]["recovery"] = json!(recovery);
+            write_configuration(directory.path(), chat);
+            let (service, _reload) = ConfigService::new(RuntimeSchema::materialize().unwrap());
+            service
+                .apply_setup(OptifySetup {
+                    config_directories: vec![directory.path().display().to_string()],
+                    features: vec!["dashboard".to_owned()],
+                })
+                .unwrap();
+            let error = match tokio::time::timeout(
+                Duration::from_secs(5),
+                ChatRuntime::new(&service).start(),
+            )
+            .await
+            .unwrap()
+            {
+                Ok(_) => panic!("unavailable chat must fail startup"),
+                Err(error) => error,
+            };
+            assert!(error.contains("authentication"));
+            assert!(error.contains(detail), "{error}");
+            assert!(error.contains("stopping Personal Dashboard"));
+            assert!(!error.contains("secret-token"));
+            assert_eq!(
+                fs::read_to_string(directory.path().join("attempts"))
+                    .unwrap()
+                    .lines()
+                    .count(),
+                expected_attempts
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn propagates_failure_after_an_established_connection() {
+        let directory = workspace_tempdir();
+        let mut chat = serde_json::to_value(chat_config()).unwrap();
+        chat["working_directory"] = json!(directory.path());
+        chat["listener"]["command"] = json!(
+            "printf '%s\\n' '{\"ready\":true}'; sleep 0.1; printf '%s\\n' '{\"error\":\"connection\"}'"
+        );
+        chat["listener"]["restart_attempts"] = json!(0);
+        write_configuration(directory.path(), chat);
+        let (service, _reload) = ConfigService::new(RuntimeSchema::materialize().unwrap());
+        service
+            .apply_setup(OptifySetup {
+                config_directories: vec![directory.path().display().to_string()],
+                features: vec!["dashboard".to_owned()],
+            })
+            .unwrap();
+        let mut task = ChatRuntime::new(&service).start().await.unwrap();
+        let error = tokio::time::timeout(Duration::from_secs(5), task.wait())
+            .await
+            .unwrap()
+            .unwrap_err();
+        assert!(error.contains("connection failure"));
     }
 
     async fn wait_for_lines(path: &Path, count: usize) -> Vec<String> {

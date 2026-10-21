@@ -1,8 +1,9 @@
-use std::process::{ExitStatus, Stdio};
+use std::process::Stdio;
+use std::time::Duration;
 
 use serde::Deserialize;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, BufReader};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 use crate::execution::{ExecutionError, ProcessGroupGuard, ShellScript};
 
@@ -18,14 +19,13 @@ pub struct ChatMessage {
 }
 
 impl ChatMessage {
-    fn parse(line: &[u8]) -> Option<Self> {
-        let message = serde_json::from_slice::<Self>(line).ok()?;
-        let has_blank_id = message.id.trim().is_empty()
-            || message
+    fn is_valid(&self) -> bool {
+        let has_blank_id = self.id.trim().is_empty()
+            || self
                 .thread
                 .as_deref()
                 .is_some_and(|thread| thread.trim().is_empty());
-        (!has_blank_id).then_some(message)
+        !has_blank_id
     }
 }
 
@@ -35,14 +35,61 @@ enum Line {
     TooLong,
 }
 
-/// Runs the configured listener until it exits and forwards each valid message it prints.
+/// Contains only controlled categories so listener diagnostics cannot leak credentials.
+#[derive(Debug, thiserror::Error)]
+pub enum ListenerError {
+    #[error("chat listener reported {0}")]
+    Reported(ListenerFailure),
+    #[error("chat listener command failed: {0}")]
+    Execution(#[from] ExecutionError),
+    #[error("chat listener exited with status {0}")]
+    Exited(String),
+    #[error("chat listener printed an invalid protocol event")]
+    Protocol,
+    #[error("chat listener did not confirm its connection within {0} seconds")]
+    StartupTimeout(u64),
+}
+
+/// Restricts failures from external commands to safe, actionable categories.
+#[derive(Debug, Deserialize, thiserror::Error)]
+#[serde(rename_all = "snake_case")]
+pub enum ListenerFailure {
+    #[error("an authentication failure; refresh the chat client's credentials")]
+    Authentication,
+    #[error("a connection failure; check the chat service and network")]
+    Connection,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ListenerEvent {
+    Message(ChatMessage),
+    Ready(ReadyEvent),
+    Failed(FailureEvent),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReadyEvent {
+    ready: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FailureEvent {
+    error: ListenerFailure,
+}
+
+/// Waits for connection readiness before forwarding messages and fails on a broken stream.
 pub async fn listen(
     script: &ShellScript,
     max_line_bytes: usize,
+    startup_timeout: Duration,
     messages: &mpsc::Sender<ChatMessage>,
-) -> Result<ExitStatus, ExecutionError> {
+    readiness: &watch::Sender<bool>,
+) -> Result<(), ListenerError> {
     let mut command = script.command();
-    // Listener diagnostics can contain credentials, so they are discarded like other raw output.
+    // Listener diagnostics can contain credentials, so only typed protocol failures are exposed.
     command.stderr(Stdio::null());
     let mut child = command.spawn().map_err(ExecutionError::Start)?;
     // The group also stops after a normal exit because a listener's pipeline can outlive its shell.
@@ -53,28 +100,52 @@ pub async fn listen(
         .expect("piped listener stdout is available");
     let mut reader = BufReader::new(stdout);
     let mut line = Vec::new();
+    let deadline = tokio::time::sleep(startup_timeout);
+    tokio::pin!(deadline);
+    let mut connected = false;
     loop {
-        match read_line(&mut reader, &mut line, max_line_bytes)
-            .await
-            .map_err(ExecutionError::OutputRead)?
-        {
+        let next = tokio::select! {
+            next = read_line(&mut reader, &mut line, max_line_bytes) => next.map_err(ExecutionError::OutputRead)?,
+            _ = &mut deadline, if !connected => return Err(ListenerError::StartupTimeout(startup_timeout.as_secs())),
+        };
+        match next {
             Line::Complete if line.trim_ascii().is_empty() => {}
-            Line::Complete => match ChatMessage::parse(&line) {
-                Some(message) => {
-                    if messages.send(message).await.is_err() {
-                        break;
+            Line::Complete => {
+                let event = serde_json::from_slice::<ListenerEvent>(&line)
+                    .map_err(|_| ListenerError::Protocol)?;
+                match event {
+                    ListenerEvent::Ready(ReadyEvent { ready: true }) => {
+                        connected = true;
+                        readiness.send_replace(true);
+                        tracing::info!("chat listener connected");
                     }
+                    ListenerEvent::Failed(event) => {
+                        return Err(ListenerError::Reported(event.error));
+                    }
+                    ListenerEvent::Message(message) if connected => {
+                        if !message.is_valid() {
+                            return Err(ListenerError::Protocol);
+                        }
+                        if messages.send(message).await.is_err() {
+                            return Ok(());
+                        }
+                    }
+                    _ => return Err(ListenerError::Protocol),
                 }
-                None => tracing::warn!("chat listener printed a line that is not a valid message"),
-            },
-            Line::End => break,
-            Line::TooLong => tracing::warn!(
-                max_line_bytes,
-                "chat listener printed a line longer than the output limit"
-            ),
+            }
+            Line::End => {
+                // A descendant can close stdout while the listener shell remains stuck.
+                let status = tokio::time::timeout(startup_timeout, child.wait())
+                    .await
+                    .map_err(|_| ListenerError::StartupTimeout(startup_timeout.as_secs()))?
+                    .map_err(ExecutionError::Status)?;
+                return Err(ListenerError::Exited(crate::execution::exit_status_code(
+                    status,
+                )));
+            }
+            Line::TooLong => return Err(ListenerError::Protocol),
         }
     }
-    child.wait().await.map_err(ExecutionError::Status)
 }
 
 /// Reads one line without buffering more than the limit, discarding the rest of a longer line.
@@ -107,54 +178,83 @@ async fn read_line(
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+    use std::time::Duration;
 
-    use tokio::sync::mpsc;
+    use tokio::sync::{mpsc, watch};
 
-    use super::{ChatMessage, listen};
+    use super::{ListenerError, listen};
     use crate::execution::ShellScript;
 
     #[tokio::test]
-    async fn forwards_valid_messages_and_skips_invalid_or_oversized_lines() {
-        let script = ShellScript {
+    async fn forwards_valid_messages_after_readiness_and_reports_safe_failures() {
+        let (messages, mut received) = mpsc::channel(8);
+        let (ready, readiness) = watch::channel(false);
+        let script = script(
+            r#"printf '%s\n' '{"ready":true}' '{"id":"c1","text":"/ai hello","thread":null}' '{"error":"authentication"}'"#,
+        );
+        let error = listen(&script, 128, Duration::from_secs(1), &messages, &ready)
+            .await
+            .unwrap_err();
+        assert!(*readiness.borrow());
+        assert_eq!(received.recv().await.unwrap().id, "c1");
+        assert!(error.to_string().contains("authentication"));
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_oversized_and_premature_messages_without_echoing_them() {
+        for output in [
+            "not json".to_owned(),
+            r#"{"id":"c1","text":"before ready","thread":null}"#.to_owned(),
+            r#"{"ready":false}"#.to_owned(),
+            r#"{"error":"secret-token"}"#.to_owned(),
+            "x".repeat(200),
+            format!(
+                "{{\"ready\":true}}\n{}",
+                r#"{"id":" ","text":"blank id","thread":null}"#
+            ),
+        ] {
+            let (messages, mut received) = mpsc::channel(8);
+            let (ready, _) = watch::channel(false);
+            let error = listen(
+                &script(&format!("printf '%s\\n' '{output}'")),
+                128,
+                Duration::from_secs(1),
+                &messages,
+                &ready,
+            )
+            .await
+            .unwrap_err();
+            assert!(matches!(error, ListenerError::Protocol));
+            assert!(!error.to_string().contains("secret-token"));
+            assert!(received.try_recv().is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn times_out_a_live_process_that_never_connects_and_rejects_clean_exit() {
+        for (command, timeout) in [("sleep 30", true), ("exit 0", false)] {
+            let (messages, _) = mpsc::channel(8);
+            let (ready, readiness) = watch::channel(false);
+            let error = listen(
+                &script(command),
+                128,
+                Duration::from_millis(30),
+                &messages,
+                &ready,
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(matches!(error, ListenerError::StartupTimeout(_)), timeout);
+            assert!(!*readiness.borrow());
+        }
+    }
+
+    fn script(source: &str) -> ShellScript {
+        ShellScript {
             arguments: Vec::new(),
-            script: [
-                r#"printf '%s\n' '{"id": "c1", "text": "/ai hello", "thread": null}'"#,
-                r#"printf '%s\n' 'not json'"#,
-                r#"printf '%s\n' '{"id": "m1", "text": "x", "thread": "c1", "extra": 1}'"#,
-                r#"printf '%s\n' '{"id": " ", "text": "blank id", "thread": null}'"#,
-                r#"printf '{"id": "m2", "text": "%0200d", "thread": "c1"}\n' 0"#,
-                "printf '\\n'",
-                r#"printf '%s\n' '{"id": "m3", "text": "after", "thread": "c1"}'"#,
-                "exit 3",
-            ]
-            .join("\n"),
+            script: source.to_owned(),
             shell: PathBuf::from("/bin/bash"),
             working_directory: None,
-        };
-        let (sender, mut receiver) = mpsc::channel(8);
-
-        let status = listen(&script, 128, &sender).await.unwrap();
-        drop(sender);
-
-        assert_eq!(status.code(), Some(3));
-        let mut messages = Vec::new();
-        while let Some(message) = receiver.recv().await {
-            messages.push(message);
         }
-        assert_eq!(
-            messages,
-            vec![
-                ChatMessage {
-                    id: "c1".to_owned(),
-                    text: "/ai hello".to_owned(),
-                    thread: None,
-                },
-                ChatMessage {
-                    id: "m3".to_owned(),
-                    text: "after".to_owned(),
-                    thread: Some("c1".to_owned()),
-                },
-            ]
-        );
     }
 }
