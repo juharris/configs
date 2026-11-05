@@ -222,19 +222,30 @@ git_rebase_push() {
 		gp --force
 }
 
-git_delete_merged_branches() {
-	local branches_to_delete=$(git branch --merged | grep -E -v "^(\*|`git symbolic-ref --short HEAD`| *master$| *main$)")
-	if [ "${branches_to_delete}" != "" ]; then
-		git branch -d ${branches_to_delete}
+# Deletes local branches except the current branch, `main`, and `master`.
+# Usage: `_git_delete_branches_except_current_and_trunk <git branch delete flag> [git for-each-ref options...]`
+_git_delete_branches_except_current_and_trunk() {
+	local delete_flag="$1"
+	shift
+	local current_branch
+	current_branch=$(git symbolic-ref --quiet --short HEAD)
+	local branches_to_delete
+	branches_to_delete=$(git for-each-ref --format='%(refname:short)' "$@" refs/heads | grep -v -x -F -e "${current_branch}" -e main -e master)
+	if [ -n "${branches_to_delete}" ]; then
+		# zsh does not split an unquoted variable into words like bash does.
+		# NUL-delimited `xargs` passes each branch as its own argument in both shells.
+		printf '%s\n' "${branches_to_delete}" | tr '\n' '\0' | xargs -0 git branch "${delete_flag}"
 	fi
+}
+
+git_delete_merged_branches() {
+	# The `=` is required because `git for-each-ref --merged` otherwise treats the next argument as the commit.
+	_git_delete_branches_except_current_and_trunk -d --merged=HEAD
 }
 
 git_prune_local_branches() {
 	# Maybe do `git fetch --prune origin`? but that will pull other branches that we don't really need and they could have lots of changes.
-	local branches_to_delete=$(git branch | grep -E -v "^(\*|`git symbolic-ref --short HEAD`| *master$| *main$)")
-	if [ "${branches_to_delete}" != "" ]; then
-		git branch -D ${branches_to_delete}
-	fi
+	_git_delete_branches_except_current_and_trunk -D
 }
 
 alias gitgraph='git log --graph --all --decorate'
