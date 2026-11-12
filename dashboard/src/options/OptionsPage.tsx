@@ -27,12 +27,25 @@ export function OptionsPage({
   connectionStatus,
   onAccepted,
 }: OptionsPageProps) {
+  const setupValues = JSON.stringify([
+    acceptedSetup?.configDirectories,
+    acceptedSetup?.features,
+  ]);
   const [configDirectories, setConfigDirectories] = useState(
     acceptedSetup?.configDirectories ?? [""],
   );
   const [features, setFeatures] = useState(acceptedSetup?.features ?? [""]);
   const [isApplying, setIsApplying] = useState(false);
   const [messages, setMessages] = useState<string[]>([]);
+  const [previousSetupValues, setPreviousSetupValues] = useState(setupValues);
+
+  // The active setup can arrive after this page mounts.
+  // Equivalent configuration refreshes must preserve edits to the form.
+  if (previousSetupValues !== setupValues) {
+    setPreviousSetupValues(setupValues);
+    setConfigDirectories(acceptedSetup?.configDirectories ?? [""]);
+    setFeatures(acceptedSetup?.features ?? [""]);
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

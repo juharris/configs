@@ -13,7 +13,7 @@
     "bindings:generate": "cargo run --quiet --bin generate_artifacts",
     "build": "pnpm run frontend:build && cargo build --release --locked",
     "check": "pnpm run format:check && pnpm run lint:rust && pnpm run typecheck && pnpm run lint && pnpm run artifacts:check && pnpm run test",
-    "dev": "concurrently --kill-others-on-fail --names backend,frontend \"cargo run --bin personal-dashboard\" \"vite\"",
+    "dev": "cargo build --bin personal-dashboard && concurrently --kill-others --names backend,frontend --passthrough-arguments \"cargo run --bin personal-dashboard -- {@}\" \"vite\" --",
     "format": "cargo fmt --all && prettier --write \"src/**/*.{css,ts,tsx}\" \"*.{js,json,ts}\"",
     "format:check": "cargo fmt --all -- --check && prettier --check \"src/**/*.{css,ts,tsx}\" \"*.{js,json,ts}\"",
     "frontend:build": "vite build",

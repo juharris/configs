@@ -453,15 +453,12 @@ export class WebSocketClient {
   }
 
   #synchronizeSetup(activeConfiguration: ActiveConfiguration | null): void {
-    const setup = this.#getSetup();
-    if (setup === null) {
+    if (activeConfiguration !== null) {
+      this.#onConfiguration(activeConfiguration);
       return;
     }
-    if (
-      activeConfiguration !== null &&
-      JSON.stringify(activeConfiguration.setup) === JSON.stringify(setup)
-    ) {
-      this.#onConfiguration(activeConfiguration);
+    const setup = this.#getSetup();
+    if (setup === null) {
       return;
     }
     void this.applySetup(setup)

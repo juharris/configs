@@ -539,12 +539,9 @@ trait DiscoveryErrorCategory {
 impl DiscoveryErrorCategory for DiscoveryError {
     fn category(&self) -> &'static str {
         match self {
+            DiscoveryError::Execution(error) => error.category(),
             DiscoveryError::InvalidItems(_) => "invalid_items",
             DiscoveryError::NonZeroExit { .. } => "non_zero_exit",
-            DiscoveryError::OutputLimit => "output_limit",
-            DiscoveryError::OutputRead(_) => "output_read",
-            DiscoveryError::Start(_) => "start",
-            DiscoveryError::Timeout => "timeout",
         }
     }
 }
@@ -562,6 +559,7 @@ mod tests {
     use super::DashboardService;
     use crate::config::{ConfigService, RuntimeSchema};
     use crate::messages::{DashboardSnapshot, OptifySetup, SectionRefreshStatus};
+    use crate::test_support::{make_executable, workspace_tempdir};
 
     #[tokio::test]
     async fn coalesces_refreshes_and_preserves_stale_items_after_failure() {
@@ -752,23 +750,5 @@ mod tests {
         })
         .await
         .expect("dashboard state was not published")
-    }
-
-    fn workspace_tempdir() -> TempDir {
-        tempfile::tempdir_in(Path::new(env!("CARGO_MANIFEST_DIR")).join("target")).unwrap()
-    }
-
-    #[cfg(unix)]
-    fn make_executable(path: &Path) {
-        use std::os::unix::fs::PermissionsExt;
-
-        let mut permissions = fs::metadata(path).unwrap().permissions();
-        permissions.set_mode(0o700);
-        fs::set_permissions(path, permissions).unwrap();
-    }
-
-    #[cfg(not(unix))]
-    fn make_executable(_path: &Path) {
-        panic!("Personal Dashboard requires Bash and a Unix process model");
     }
 }

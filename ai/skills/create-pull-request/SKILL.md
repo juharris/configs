@@ -6,6 +6,11 @@ allowed-tools: Read, Grep
 
 # Git Commit Messages
 
+Before choosing a remote or pull-request command, load the applicable installed organization or provider companion skill for this workflow, such as `<organization>-create-pull-request`.
+Apply its provider discovery, commands, and links to the resources it covers; GitHub examples below apply only to GitHub resources.
+Keep this skill's draft, description, and reviewer-selection requirements.
+If a companion already loaded this skill, continue the combined workflow without reloading either skill or repeating completed steps.
+
 When asked to make a pull request, first check for the current branch and staged changes.
 Do not commit directly to main (unless explicitly asked); instead, make a new branch first:
 In shared repositories, such as ones in the user's company, prefix the branch name with `jus/` to indicate that the branch is being worked on by the user.
