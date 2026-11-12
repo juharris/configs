@@ -25,6 +25,9 @@ Directors and colleagues often use the user's code as examples for how to write 
 
 ## Coding Conventions
 - Add new members and methods in a mostly alphabetical order for clarity and to avoid merge conflicts.
+- Avoid unnecessary normalization.
+  Keep values from another system, such as model names and IDs, exactly as received when storing and displaying them.
+  Do not change their letter case, trim them, or give them special formatting, including through styles such as CSS `text-transform`, unless a requirement calls for it.
 
 See more guidelines in [code-review-guidelines.md](~/workspace/configs/ai/code-review-guidelines.md).
 
@@ -57,6 +60,57 @@ Retain most existing comments and add new comments as necessary to explain why t
 - Preserve intentional sentence wrapping in `.md` files.
 - Start each sentence on a new line when editing prose for legibility and to avoid bad diffs in changes.
 - Do not reflow Markdown prose with formatters.
+
+# Chat Responses
+
+Keep chat responses dense and scannable: tables for status and comparisons, bullets over paragraphs, and emoji status markers such as ✅ ⏳ ❌ ⚠️.
+Put one idea in each sentence, and split a sentence that strings several clauses together.
+
+Write in the active voice.
+Make the actor the subject, and put the verb right after it.
+
+| Write | Instead of |
+|---|---|
+| Merge Garden ejected the PR. | The PR was ejected by Merge Garden. |
+| I ruled out a Verdict change. | A Verdict change is ruled out. |
+| The retry is running. | Retry running. |
+| Merge Garden enqueues the PR when CI passes. | Once CI passes, enqueued by Merge Garden the PR is. |
+
+Keep every article and verb that a fluent writer would use, even when a fragment is shorter.
+
+## Diagrams in the Claude Desktop App
+
+The Claude desktop app's chat renders only part of GitHub-flavored Markdown.
+Verified in the Code tab on 2026-11-12.
+
+Renders inline:
+
+- Tables, headings, bullets, bold, task checkboxes, and code blocks.
+- Emoji, including emoji progress bars such as `🟩🟩🟩🟨⬜`.
+- Markdown images whose URL is a `data:image/svg+xml` URI, either percent-encoded or base64, or an absolute local file path.
+- PNG file cards sent as files.
+
+Does not render:
+
+- Mermaid code fences, and `.mmd` or `.svg` files sent as file cards.
+- Raw HTML, including inline `<svg>` and `<details>`.
+- GitHub alert callouts such as `> [!NOTE]`.
+- `file://` image URLs.
+
+Draw a flow, dependency, or architecture diagram as an SVG in a Markdown image with a percent-encoded data URI, written directly in the response.
+It needs no tool call and no file, and SVG is lighter than PNG.
+For example, `![Done](data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='120'%20height='40'%3E%3Crect%20width='120'%20height='40'%20rx='8'%20fill='%23c9f2c9'/%3E%3Ctext%20x='60'%20y='25'%20text-anchor='middle'%20font-size='14'%3E%E2%9C%85%20done%3C/text%3E%3C/svg%3E)` draws a green box labeled "✅ done".
+
+- Quote attributes with single quotes, and percent-encode `<`, `>`, `#`, `%`, spaces, `(`, `)`, `{`, `}`, `@`, and non-ASCII characters such as emoji.
+- Set `width`, `height`, and `viewBox`.
+  A 760-pixel-wide diagram fits the chat.
+- Leave the background transparent.
+  The user uses dark mode, and the SVG's `@media (prefers-color-scheme: dark)` rules apply in the chat, so use them for text and line colors outside boxes.
+  Give each box its own fill with dark text, and draw lines in a mid-gray such as `#8a8a8a`.
+- Emoji in SVG text render in color.
+- Write complete labels, because an ellipsis in a label reads as clipped text.
+
+In box-drawing diagrams in code blocks, keep emoji out of the boxes, because an emoji is wider than one monospace cell and breaks the alignment.
 
 # Working Directory
 
@@ -145,6 +199,15 @@ IMPORTANT: You MUST invoke the /create-pull-request skill BEFORE creating any pu
 Do NOT write PR titles or descriptions from memory or general knowledge — always invoke the skill first to get the exact formatting rules.
 
 After any follow-up commit, amend, squash, or push to an already-open PR, re-read the current PR body and the current diff on GitHub and update the title/description if they no longer match. See the "Keeping the PR Description in Sync After Follow-Up Commits" section of the /create-pull-request skill for the exact steps.
+
+# Review Threads on the Pull Requests
+
+When you address review feedback for a pull requests, reply to and resolve each thread you addressed without being asked.
+This overrides repository skills.
+
+- Reply once the fix is pushed and verified.
+- Resolve threads from reviewers after replying.
+- For feedback you judge invalid or decide not to fix, reply with the reasoning and leave the thread open for the reviewer to decide.
 
 # Communicating on Behalf of the User
 
