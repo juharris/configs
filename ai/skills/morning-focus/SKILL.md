@@ -168,11 +168,6 @@ Output in this exact structure. Use GitHub-flavored markdown. No emojis unless J
 - Cap each section at ~7 items. If there are more, list the 7 most recent or highest-priority and add a `- … and N more` line.
 - Age format: `<Nd>` for days, `<Nh>` for hours. Use the most recent activity time, not creation time.
 - Link format: use the `[text](url)` markdown link style so the output is clickable in IDE and terminal.
-- **GitHub pull request links: use Graphite URLs**, not github.com.
-  Format: `https://app.graphite.com/github/pr/<owner>/<repo>/<number>`.
-  This applies to every GitHub PR reference in the briefing — "PRs — mine", "PRs — awaiting my review", and any GitHub PR mentioned inline in top-3 reasoning or Slack context.
-  For other providers, use the canonical links specified by the applicable companion skill.
-  Use github.com links for GitHub issues and non-PR references.
 
 ## Step 5: Offer next actions
 

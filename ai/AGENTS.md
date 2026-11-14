@@ -176,15 +176,13 @@ When resolving conflicts or making changes, edit the working tree only and let t
 In shared repositories, such as ones in the user's company, prefix the branch name with `jus/` to indicate that the branch is being worked on by the user.
 
 Use `git switch --create <branch-name>` to create a new branch by default.
-Use Graphite (`gt`) only when the user explicitly asks for Graphite, when working on a stacked PR, or when repository/task instructions specifically require Graphite.
-Never use Graphite when the user asks not to.
-When using Graphite, load the /graphite skill and follow its workflow.
 
 # Amending vs. New Commits
 
 For most repos, for small follow-up changes to an in-flight PR (review feedback, typo fixes, lint fixes, revert of a single hunk), prefer amending the existing commit via `git commit --amend` + `git push --force-with-lease` rather than stacking a new commit on top.
-Use `gt modify` instead when working in a Graphite stack.
-This keeps World PRs to a single clean commit.
+
+At work, use the latest internal command with modify: `<command> modify` instead when working in a stack.
+This keeps PRs to a single clean commit.
 
 Some repos, such as optify do squash commits for pull requests, so amending is not necessary there.
 
