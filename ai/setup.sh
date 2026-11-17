@@ -6,10 +6,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 CODEX_DIR="$HOME/.codex"
 COPILOT_DIR="$HOME/.copilot"
+ULTIMATE_DIR="$HOME/.ultimate"
 
 AGENTS_SKILLS_DIR="$HOME/.agents/skills"
 CLAUDE_SKILLS_DIR="$CLAUDE_DIR/skills"
 COPILOT_SKILLS_DIR="$COPILOT_DIR/skills"
+ULTIMATE_SKILLS_DIR="$ULTIMATE_DIR/skills"
 
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -21,6 +23,7 @@ SKILL_TARGETS=(
   "$AGENTS_SKILLS_DIR"
   "$COPILOT_SKILLS_DIR"
   "$CLAUDE_SKILLS_DIR"
+  "$ULTIMATE_SKILLS_DIR"
 )
 
 CONTEXT_TARGETS=(
@@ -28,6 +31,7 @@ CONTEXT_TARGETS=(
   "$CODEX_DIR/AGENTS.md"
   "$COPILOT_DIR/copilot-instructions.md"
   "$HOME/.pi/agent/AGENTS.md"
+  "$ULTIMATE_DIR/AGENTS.md"
 )
 
 # Git Bash (MSYS2) defaults to `winsymlinks:deepcopy`, so `ln -s` silently copies instead of linking.
