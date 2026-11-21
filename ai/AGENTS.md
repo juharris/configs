@@ -28,6 +28,11 @@ Directors and colleagues often use the user's code as examples for how to write 
 - Avoid unnecessary normalization.
   Keep values from another system, such as model names and IDs, exactly as received when storing and displaying them.
   Do not change their letter case, trim them, or give them special formatting, including through styles such as CSS `text-transform`, unless a requirement calls for it.
+- Represent a value that is not set as `undefined`, `null`, or `nil`, never as an empty string, zero, or another placeholder.
+  An empty string is a real value, so it must not also mean "not set".
+  Keep "not set" through every layer, from storage to the code that uses the value, instead of converting it to a placeholder and back.
+  Check for "not set" directly, such as with `value === undefined`, instead of with `trim()` or a truthiness check that also catches real values.
+  Convert only at a boundary that requires another type, such as a text input that needs a string, and convert back as soon as the value leaves that boundary.
 
 See more guidelines in [code-review-guidelines.md](~/workspace/configs/ai/code-review-guidelines.md).
 
