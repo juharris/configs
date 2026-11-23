@@ -3,7 +3,8 @@
 A name should tell callers what a component does and how to use it before they read the implementation.
 Names become liabilities when they preserve temporary implementation details, historical reasons, or the name of a vendor that callers do not need to know about.
 
-Name classes, methods, variables, and modules after their behavior.
+Name classes, methods, variables, modules, and files after their behavior.
+A test file takes the name of the file it tests.
 Callers should depend on a promise rather than on the mechanism that currently fulfills it.
 Keep details about the mechanism inside the implementation or in the integration layer that owns it using comments, private method names, or less prominent classes.
 

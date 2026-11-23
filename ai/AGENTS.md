@@ -25,9 +25,14 @@ Directors and colleagues often use the user's code as examples for how to write 
 
 ## Coding Conventions
 - Add new members and methods in a mostly alphabetical order for clarity and to avoid merge conflicts.
+- Avoid unnecessary allocations.
+  Count or search with a loop or an iterator method such as `some`, `find`, or `reduce` instead of building a temporary collection, such as with `filter(...).length`.
+  Move a fixed collection that a function rebuilds on every call, such as `[definition.name, ...definition.aliases]`, into a named constant as an optimization and for clarity.
 - Avoid unnecessary normalization.
   Keep values from another system, such as model names and IDs, exactly as received when storing and displaying them.
   Do not change their letter case, trim them, or give them special formatting, including through styles such as CSS `text-transform`, unless a requirement calls for it.
+- Name classes, methods, variables, modules, and files after what they do, not after the vendor or mechanism that currently does it, as [Name Code After What It Does](~/workspace/configs/blogs/naming.md) explains.
+  For example, a module that exposes the app's analytics events is `analytics.ts` with tests in `analytics.test.ts`, even when a third-party analytics service records the events.
 
 See more guidelines in [code-review-guidelines.md](~/workspace/configs/ai/code-review-guidelines.md).
 
