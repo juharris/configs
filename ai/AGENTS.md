@@ -155,7 +155,7 @@ Behave like a thoughtful colleague:
 # CLI Commands
 
 NEVER guess at CLI syntax, flags, or subcommands. ALWAYS run `<command> --help` or `<command> <subcommand> --help` first and read the output before suggesting or executing any command you are not 100% certain about.
-This applies to all CLIs: `gt`, `gh`, `git`, `dev`, `tec`, and any other tool.
+This applies to all CLIs: `dt`, `gh`, `git`, `dev`, `tec`, and any other tool.
 The user's credibility depends on correct commands. A wrong flag or invented subcommand wastes time and erodes trust.
 
 # Development Commands
@@ -198,7 +198,7 @@ Do NOT write commit messages from memory or general knowledge — always invoke 
 
 # Creating Pull Requests
 
-IMPORTANT: You MUST invoke the /create-pull-request skill BEFORE creating any pull request such as when using `gh pr create` or `gt submit`.
+IMPORTANT: You MUST invoke the /create-pull-request skill BEFORE creating any pull request such as when using `gh pr create` or `dt submit`.
 Do NOT write PR titles or descriptions from memory or general knowledge — always invoke the skill first to get the exact formatting rules.
 
 After any follow-up commit, amend, squash, or push to an already-open PR, re-read the current PR body and the current diff on GitHub and update the title/description if they no longer match. See the "Keeping the PR Description in Sync After Follow-Up Commits" section of the /create-pull-request skill for the exact steps.
