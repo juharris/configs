@@ -50,6 +50,8 @@ Use a truthiness guard only when treating missing keys, `nil`, and `false` alike
 ### Code Quality
 
 - **Unnecessary complexity**: Question trim(), extra checks, mutex without explanation
+- **Placeholders for values that are not set**: Question defaults such as `?? ""`, `|| ""`, and `fallback: ""` that make an empty string mean "not set".
+  Let's keep the value `undefined`, `null`, or `nil` until it reaches a boundary that requires another type, as [AGENTS.md](~/workspace/configs/ai/AGENTS.md) describes.
 
 ## Voice and Style
 
