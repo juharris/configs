@@ -88,6 +88,27 @@ Make the actor the subject, and put the verb right after it.
 
 Keep every article and verb that a fluent writer would use, even when a fragment is shorter.
 
+Keep responses clear and short, never walls of text.
+Give the answer, and include evidence when it is relevant and important.
+
+## Name and Link Every Reference
+
+The user does not remember much from one message to the next and frequently multitasks.
+So every message must make sense on its own, without the earlier messages.
+
+Never mention an ID, number, ticket key, or handle by itself, such as `441`, `ABC-123`, or `#4567`.
+Write the full title with the ticket key or number, and link it, every time it appears, even when an earlier message already linked it.
+For example, write [ABC-123: Add a dark mode toggle](https://tracker.example.com/issues/ABC-123), not `ABC-123`.
+
+- Issue or ticket: link the key, followed by its full title as the tracker shows it.
+- Pull request: link the repository and number, followed by its full title as the provider shows it.
+- Entity in a dashboard, such as a flag or experiment: link its handle to its dashboard page, and add a few words that say what it is.
+  Never use an internal database ID, such as a flag ID, in place of the handle.
+  When a command needs the ID, put it inside the command.
+
+Read each title from the tracker or provider before you write it, and never write a title from memory.
+If you cannot read the title, link the key and say that you could not read the title.
+
 ## Diagrams in the Claude Desktop App
 
 The Claude desktop app's chat renders only part of GitHub-flavored Markdown.
