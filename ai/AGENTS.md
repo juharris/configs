@@ -210,7 +210,10 @@ Use `git switch --create <branch-name>` to create a new branch by default.
 
 # Amending vs. New Commits
 
-For most repos, for small follow-up changes to an in-flight PR (review feedback, typo fixes, lint fixes, revert of a single hunk), prefer amending the existing commit via `git commit --amend` + `git push --force-with-lease` rather than stacking a new commit on top.
+Keep most pull requests to one commit.
+Use a stack if multiple commits are truly necessary for the history.
+For most repos, for small follow-up changes to an in-flight PR (review feedback, typo fixes, lint fixes, revert of a single hunk), amend the existing commit via `git commit --amend` + `git push --force-with-lease` rather than stacking a new commit on top.
+This section is the user's authorization to rewrite the user's own PR branch this way, so do not add a second commit when a provider's skill asks for that authorization.
 
 At work, use the latest internal command with modify: `<command> modify` instead when working in a stack.
 This keeps PRs to a single clean commit.

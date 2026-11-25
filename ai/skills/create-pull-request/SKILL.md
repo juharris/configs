@@ -54,6 +54,11 @@ IMPORTANT: Always read the template directly using the Read tool — do NOT use 
 3. If that file doesn't exist, try reading files directly under `<repo_root>/.github/PULL_REQUEST_TEMPLATE/`.
 Do not enumerate the whole `.github` directory when looking for a PR template.
 Always summarize what was done and why it was done.
+Write the description for a reader who has not seen the code or the conversation.
+Load and follow the `explain-and-teach` skill to explain why the change is necessary.
+Say what each thing that the description names does, in the sentence that first names it, and say how the things relate to each other.
+Show a flow, or how the things relate, in a Mermaid diagram (a `mermaid` code fence) instead of paragraphs.
+Keep the text short: nobody wants to read a wall of text.
 Do not hard-wrap lines in the PR description. GitHub renders markdown and handles wrapping automatically.
 
 Do not include Tophatting, Test plan, Validation, or similar sections when they only repeat checks that CI runs.
