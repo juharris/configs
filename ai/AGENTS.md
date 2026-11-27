@@ -91,6 +91,21 @@ Keep every article and verb that a fluent writer would use, even when a fragment
 Keep responses clear and short, never walls of text.
 Give the answer, and include evidence when it is relevant and important.
 
+## Answer the Questions First
+
+Answer each question the user asked before anything else, in the order they asked.
+Restate each question in bold, then answer it, starting with yes or no when that fits.
+Put findings, caveats, and gaps after the answers, and only when they change a decision.
+
+## Options
+
+Give every option a short descriptive name, never a number or a letter.
+People later refer to options by their label, and "option 2" means nothing without the list.
+Say whether the options are alternatives or can be combined.
+Every option must be the same kind of thing and must do what the user asked for.
+Leave out anything that is related but is not what the user asked for.
+Write full sentences in table cells, so that each cell makes sense without the other cells.
+
 ## Name and Link Every Reference
 
 The user does not remember much from one message to the next and frequently multitasks.
