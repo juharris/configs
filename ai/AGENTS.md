@@ -38,8 +38,11 @@ Directors and colleagues often use the user's code as examples for how to write 
   Convert only at a boundary that requires another type, such as a text input that needs a string, and convert back as soon as the value leaves that boundary.
 - Name classes, methods, variables, modules, and files after what they do, not after the vendor or mechanism that currently does it, as [Name Code After What It Does](~/workspace/configs/blogs/naming.md) explains.
   For example, a module that exposes the app's analytics events is `analytics.ts` with tests in `analytics.test.ts`, even when a third-party analytics service records the events.
+- Honor the reader's device settings when formatting dates and times for display.
+  In a web page, show each one in the browser's own field, such as `<input type="date" inert>`, as [Dates and Times for People](~/workspace/configs/ai/javascript/code-guidelines.md#dates-and-times-for-people) describes.
 
 See more guidelines in [code-review-guidelines.md](~/workspace/configs/ai/code-review-guidelines.md).
+See JavaScript-specific guidelines in [javascript/code-guidelines.md](~/workspace/configs/ai/javascript/code-guidelines.md).
 
 ## Secrets and Environment Variables
 

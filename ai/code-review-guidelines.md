@@ -53,6 +53,13 @@ Use a truthiness guard only when treating missing keys, `nil`, and `false` alike
 - **Placeholders for values that are not set**: Question defaults such as `?? ""`, `|| ""`, and `fallback: ""` that make an empty string mean "not set".
   Let's keep the value `undefined`, `null`, or `nil` until it reaches a boundary that requires another type, as [AGENTS.md](~/workspace/configs/ai/AGENTS.md) describes.
 
+### Dates and Times for People
+
+In a web page, the browser's own field shows each date and time, as [Dates and Times for People](~/workspace/configs/ai/javascript/code-guidelines.md#dates-and-times-for-people) describes.
+Flag a date or time that the page displays any other way.
+
+Typical comment: "Let's show this date in `<input type="date" inert>` styled as text, so it follows the reader's own date format."
+
 ## Voice and Style
 
 **Typical comment structure:**
@@ -85,6 +92,10 @@ This rule applies to ALL generated comment text, including inline code review co
 **Softening language:**
 - "I don't think we need..." / "I don't think these tests are really necessary"
 - "Maybe it would be better..." / "Could we..."
+
+# JavaScript
+
+See [javascript/code-guidelines.md](~/workspace/configs/ai/javascript/code-guidelines.md) for JavaScript-specific guidelines.
 
 # Ruby
 
